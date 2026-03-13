@@ -1,7 +1,7 @@
 [build]
   base = "powerhouse"
   command = "npm run build"
-  publish = "powerhouse/dist"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"
