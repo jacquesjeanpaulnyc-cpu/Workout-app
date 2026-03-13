@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="theme-color" content="#0D0D0D"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Powerhouse — 12-Week Training</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0D0D0D;--card:#111;--card-hover:#1a1a1a;--border:#222;
+  --text:#fff;--text2:#999;--text3:#555;
+  --red:#E74C3C;--orange:#E67E22;--green:#27AE60;--blue:#3B82F6;
+  --radius:14px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'SF Mono','JetBrains Mono','Fira Code','Consolas',monospace;
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+body{display:flex;justify-content:center}
+.app{width:100%;max-width:480px;height:100%;display:flex;flex-direction:column;position:relative}
+
+/* Header */
+header{padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);flex-shrink:0}
+header h1{font-size:15px;letter-spacing:3px;font-weight:700}
+header button{background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px}
+header button:hover{color:var(--text)}
+
+/* Content */
+.content{flex:1;overflow-y:auto;padding:16px 16px 24px;-webkit-overflow-scrolling:touch}
+.content::-webkit-scrollbar{width:0}
+
+/* Bottom Nav */
+nav{display:flex;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+nav button{flex:1;padding:12px 0 14px;background:none;border:none;color:var(--text3);
+  font-family:inherit;font-size:10px;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:4px;transition:color .2s}
+nav button.active{color:var(--text)}
+nav button svg{width:22px;height:22px}
+nav .indicator{height:2px;border-radius:1px;width:20px;margin-top:2px;transition:background .2s}
+nav button.active .indicator{background:var(--accent,var(--text))}
+
+/* Cards */
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.card-title{font-size:11px;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+
+/* Progress Bar */
+.pbar-wrap{margin-bottom:14px}
+.pbar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.pbar-label span:last-child{color:var(--text2)}
+.pbar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+
+/* Circular Progress */
+.circle-wrap{display:flex;flex-direction:column;align-items:center;margin:16px 0}
+.circle-wrap svg{transform:rotate(-90deg)}
+.circle-text{font-size:28px;font-weight:700}
+.circle-sub{font-size:12px;color:var(--text2);margin-top:4px}
+
+/* Buttons */
+.btn{padding:10px 18px;border-radius:10px;border:none;font-family:inherit;font-size:13px;
+  font-weight:600;cursor:pointer;transition:transform .1s,opacity .1s}
+.btn:active{transform:scale(0.96)}
+.btn-accent{background:var(--accent,var(--blue));color:#fff}
+.btn-ghost{background:var(--border);color:var(--text)}
+.btn-sm{padding:8px 14px;font-size:12px;border-radius:8px}
+
+/* Quick add row */
+.quick-row{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.quick-row button{flex:1;max-width:100px}
+
+/* Exercise list */
+.ex-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.ex-item:last-child{border-bottom:none}
+.ex-check{width:24px;height:24px;border-radius:50%;border:2px solid var(--text3);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+  transition:all .2s}
+.ex-check.done{border-color:var(--accent,var(--green));background:var(--accent,var(--green))}
+.ex-check.done::after{content:'✓';font-size:13px;color:#fff}
+.ex-name{font-size:13px;flex:1}
+.ex-name.done{text-decoration:line-through;color:var(--text3)}
+.ex-sets{font-size:12px;color:var(--text2);flex-shrink:0}
+
+/* Day selector pills */
+.day-pills{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px}
+.day-pills::-webkit-scrollbar{display:none}
+.day-pill{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:none;
+  color:var(--text2);font-family:inherit;font-size:11px;cursor:pointer;white-space:nowrap;
+  transition:all .2s}
+.day-pill.active{background:var(--accent,var(--text));color:#000;border-color:transparent}
+
+/* Split toggle */
+.split-toggle{display:flex;gap:0;margin-bottom:14px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.split-btn{flex:1;padding:8px;background:none;border:none;color:var(--text2);
+  font-family:inherit;font-size:12px;cursor:pointer;transition:all .2s}
+.split-btn.active{background:var(--accent,var(--text));color:#000}
+
+/* Meal list */
+.meal-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;
+  border-bottom:1px solid var(--border)}
+.meal-item:last-child{border-bottom:none}
+.meal-name{font-size:13px}
+.meal-macros{font-size:11px;color:var(--text2)}
+.meal-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px 8px}
+.meal-del:hover{color:var(--red)}
+
+/* Form inputs */
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:11px;color:var(--text2);margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:1px}
+.form-input{width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+.form-input:focus{border-color:var(--text3)}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+
+/* Settings overlay */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;
+  justify-content:center;overflow-y:auto}
+.overlay-inner{width:100%;max-width:480px;padding:20px 16px}
+.overlay-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.overlay-header h2{font-size:15px;letter-spacing:2px}
+.overlay-close{background:none;border:none;color:var(--text2);font-size:24px;cursor:pointer}
+
+/* Streak badge */
+.streak{display:flex;align-items:center;gap:8px;padding:14px;justify-content:center}
+.streak-num{font-size:36px;font-weight:700}
+.streak-label{font-size:12px;color:var(--text2)}
+
+/* Phase badge */
+.phase-badge{font-size:11px;padding:4px 10px;border-radius:6px;font-weight:600;display:inline-block}
+
+/* Summary row */
+.summary-row{display:flex;gap:10px;margin-bottom:12px}
+.summary-item{flex:1;background:var(--card);border-radius:var(--radius);padding:14px;text-align:center}
+.summary-val{font-size:22px;font-weight:700}
+.summary-label{font-size:10px;color:var(--text2);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card{animation:fadeIn .3s ease}
+
+/* Hide all tabs by default */
+.tab{display:none}
+.tab.active{display:block}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <h1>POWERHOUSE</h1>
+    <button onclick="toggleSettings()" title="Settings">⚙</button>
+  </header>
+
+  <div class="content" id="content">
+    <!-- HOME TAB -->
+    <div class="tab active" id="tab-home"></div>
+    <!-- WORKOUT TAB -->
+    <div class="tab" id="tab-workout"></div>
+    <!-- FOOD TAB -->
+    <div class="tab" id="tab-food"></div>
+    <!-- WATER TAB -->
+    <div class="tab" id="tab-water"></div>
+  </div>
+
+  <nav id="nav">
+    <button class="active" data-tab="home" onclick="switchTab('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1V10"/></svg>
+      Home
+      <div class="indicator"></div>
+    </button>
+    <button data-tab="workout" onclick="switchTab('workout')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4v16M18 4v16M2 8h4M18 8h4M2 16h4M18 16h4M6 12h12"/></svg>
+      Workout
+      <div class="indicator"></div>
+    </button>
+    <button data-tab="food" onclick="switchTab('food')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><path d="M6 1v3M10 1v3M14 1v3"/></svg>
+      Food
+      <div class="indicator"></div>
+    </button>
+    <button data-tab="water" onclick="switchTab('water')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l5.5 9A6.5 6.5 0 0112 22a6.5 6.5 0 01-5.5-11L12 2z"/></svg>
+      Water
+      <div class="indicator"></div>
+    </button>
+  </nav>
+</div>
+
+<!-- Settings overlay (hidden) -->
+<div class="overlay" id="settings-overlay" style="display:none"></div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────
+const PROGRAMS = {
+  3: [
+    { name:"Phase 1", weeks:"Weeks 1–4", color:"var(--red)", days:[
+      { name:"Day 1 — Lower Strength", rest:"90s rest", exercises:[
+        {name:"Back Squat",sets:"4×5"},{name:"Romanian Deadlift",sets:"3×8"},
+        {name:"Bulgarian Split Squat",sets:"3×10 ea"},{name:"Leg Curl",sets:"3×12"},
+        {name:"Calf Raise",sets:"3×15"},{name:"Plank Hold",sets:"3×45s"}
+      ]},
+      { name:"Day 2 — Upper Strength", rest:"90s rest", exercises:[
+        {name:"Bench Press",sets:"4×5"},{name:"Barbell Row",sets:"4×6"},
+        {name:"Overhead Press",sets:"3×8"},{name:"Lat Pulldown",sets:"3×10"},
+        {name:"Dumbbell Curl",sets:"3×12"},{name:"Tricep Pushdown",sets:"3×12"}
+      ]},
+      { name:"Day 3 — Full Body + Conditioning", rest:"60s rest", exercises:[
+        {name:"Deadlift",sets:"3×5"},{name:"Incline Dumbbell Press",sets:"3×10"},
+        {name:"Pull-Up or Assisted",sets:"3×8"},{name:"Kettlebell Swing",sets:"3×15"},
+        {name:"Farmer's Walk",sets:"3×40m"},{name:"Ab Wheel Rollout",sets:"3×10"}
+      ]}
+    ]},
+    { name:"Phase 2", weeks:"Weeks 5–8", color:"var(--orange)", days:[
+      { name:"Day 1 — Lower Hypertrophy", rest:"75s rest", exercises:[
+        {name:"Front Squat",sets:"4×8"},{name:"Stiff-Leg Deadlift",sets:"4×10"},
+        {name:"Walking Lunge",sets:"3×12 ea"},{name:"Leg Extension",sets:"3×15"},
+        {name:"Seated Calf Raise",sets:"4×15"},{name:"Hanging Knee Raise",sets:"3×12"}
+      ]},
+      { name:"Day 2 — Upper Hypertrophy", rest:"75s rest", exercises:[
+        {name:"Dumbbell Bench Press",sets:"4×10"},{name:"Cable Row",sets:"4×10"},
+        {name:"Arnold Press",sets:"3×12"},{name:"Chest Fly",sets:"3×15"},
+        {name:"Hammer Curl",sets:"3×12"},{name:"Overhead Tricep Ext",sets:"3×12"}
+      ]},
+      { name:"Day 3 — Full Body Power", rest:"90s rest", exercises:[
+        {name:"Trap Bar Deadlift",sets:"4×6"},{name:"Push Press",sets:"3×6"},
+        {name:"Chin-Up",sets:"3×8"},{name:"Box Jump",sets:"3×8"},
+        {name:"Battle Ropes",sets:"3×30s"},{name:"Pallof Press",sets:"3×10 ea"}
+      ]}
+    ]},
+    { name:"Phase 3", weeks:"Weeks 9–12", color:"var(--green)", days:[
+      { name:"Day 1 — Lower Peak", rest:"120s rest", exercises:[
+        {name:"Back Squat",sets:"5×3"},{name:"Deficit Deadlift",sets:"4×5"},
+        {name:"Hip Thrust",sets:"3×10"},{name:"Leg Press",sets:"3×12"},
+        {name:"Calf Raise",sets:"4×12"},{name:"L-Sit Hold",sets:"3×20s"}
+      ]},
+      { name:"Day 2 — Upper Peak", rest:"120s rest", exercises:[
+        {name:"Bench Press",sets:"5×3"},{name:"Weighted Pull-Up",sets:"4×5"},
+        {name:"Strict Press",sets:"3×6"},{name:"Pendlay Row",sets:"4×6"},
+        {name:"Barbell Curl",sets:"3×10"},{name:"Close-Grip Bench",sets:"3×8"}
+      ]},
+      { name:"Day 3 — Full Body Finish", rest:"90s rest", exercises:[
+        {name:"Power Clean",sets:"4×3"},{name:"Incline Bench",sets:"3×8"},
+        {name:"Barbell Row",sets:"3×8"},{name:"Dumbbell Snatch",sets:"3×6 ea"},
+        {name:"Sled Push",sets:"3×30m"},{name:"Dragon Flag",sets:"3×6"}
+      ]}
+    ]}
+  ],
+  5: [
+    { name:"Phase 1", weeks:"Weeks 1–4", color:"var(--red)", days:[
+      { name:"Day 1 — Lower A", rest:"90s rest", exercises:[
+        {name:"Back Squat",sets:"4×5"},{name:"Romanian Deadlift",sets:"3×8"},
+        {name:"Leg Press",sets:"3×10"},{name:"Leg Curl",sets:"3×12"},{name:"Calf Raise",sets:"4×15"}
+      ]},
+      { name:"Day 2 — Upper A", rest:"90s rest", exercises:[
+        {name:"Bench Press",sets:"4×5"},{name:"Barbell Row",sets:"4×6"},
+        {name:"Overhead Press",sets:"3×8"},{name:"Lat Pulldown",sets:"3×10"},{name:"Face Pull",sets:"3×15"}
+      ]},
+      { name:"Day 3 — Conditioning", rest:"45s rest", exercises:[
+        {name:"Kettlebell Swing",sets:"4×15"},{name:"Box Jump",sets:"3×8"},
+        {name:"Battle Ropes",sets:"3×30s"},{name:"Plank Hold",sets:"3×45s"},{name:"Farmer's Walk",sets:"3×40m"}
+      ]},
+      { name:"Day 4 — Lower B", rest:"90s rest", exercises:[
+        {name:"Front Squat",sets:"4×6"},{name:"Sumo Deadlift",sets:"3×6"},
+        {name:"Bulgarian Split Squat",sets:"3×10 ea"},{name:"Leg Extension",sets:"3×12"},{name:"Seated Calf",sets:"3×15"}
+      ]},
+      { name:"Day 5 — Upper B", rest:"90s rest", exercises:[
+        {name:"Incline DB Press",sets:"4×8"},{name:"Cable Row",sets:"4×10"},
+        {name:"Dumbbell Lateral Raise",sets:"3×15"},{name:"Dumbbell Curl",sets:"3×12"},{name:"Tricep Pushdown",sets:"3×12"}
+      ]}
+    ]},
+    { name:"Phase 2", weeks:"Weeks 5–8", color:"var(--orange)", days:[
+      { name:"Day 1 — Lower A", rest:"75s rest", exercises:[
+        {name:"Pause Squat",sets:"4×6"},{name:"Stiff-Leg Deadlift",sets:"4×10"},
+        {name:"Walking Lunge",sets:"3×12 ea"},{name:"Leg Curl",sets:"3×15"},{name:"Calf Raise",sets:"4×15"}
+      ]},
+      { name:"Day 2 — Upper A", rest:"75s rest", exercises:[
+        {name:"DB Bench Press",sets:"4×10"},{name:"Chest-Supported Row",sets:"4×10"},
+        {name:"Arnold Press",sets:"3×12"},{name:"Chest Fly",sets:"3×15"},{name:"Rear Delt Fly",sets:"3×15"}
+      ]},
+      { name:"Day 3 — Conditioning", rest:"30s rest", exercises:[
+        {name:"Thruster",sets:"4×10"},{name:"Burpee",sets:"3×12"},
+        {name:"Renegade Row",sets:"3×10 ea"},{name:"Mountain Climber",sets:"3×30s"},{name:"Ab Wheel",sets:"3×10"}
+      ]},
+      { name:"Day 4 — Lower B", rest:"75s rest", exercises:[
+        {name:"Goblet Squat",sets:"4×12"},{name:"Hip Thrust",sets:"4×10"},
+        {name:"Step-Up",sets:"3×10 ea"},{name:"Leg Extension",sets:"3×15"},{name:"Seated Calf",sets:"4×15"}
+      ]},
+      { name:"Day 5 — Upper B", rest:"75s rest", exercises:[
+        {name:"Incline Barbell Press",sets:"4×8"},{name:"Pull-Up",sets:"4×8"},
+        {name:"Cable Lateral Raise",sets:"3×15"},{name:"Hammer Curl",sets:"3×12"},{name:"Overhead Tricep Ext",sets:"3×12"}
+      ]}
+    ]},
+    { name:"Phase 3", weeks:"Weeks 9–12", color:"var(--green)", days:[
+      { name:"Day 1 — Lower A", rest:"120s rest", exercises:[
+        {name:"Back Squat",sets:"5×3"},{name:"Deficit Deadlift",sets:"4×5"},
+        {name:"Leg Press",sets:"3×10"},{name:"Nordic Curl",sets:"3×6"},{name:"Calf Raise",sets:"4×12"}
+      ]},
+      { name:"Day 2 — Upper A", rest:"120s rest", exercises:[
+        {name:"Bench Press",sets:"5×3"},{name:"Weighted Pull-Up",sets:"4×5"},
+        {name:"Strict Press",sets:"3×6"},{name:"Pendlay Row",sets:"4×6"},{name:"Face Pull",sets:"3×15"}
+      ]},
+      { name:"Day 3 — Conditioning", rest:"45s rest", exercises:[
+        {name:"Power Clean",sets:"4×3"},{name:"Dumbbell Snatch",sets:"3×6 ea"},
+        {name:"Sled Push",sets:"3×30m"},{name:"Hanging Leg Raise",sets:"3×10"},{name:"Prowler Sprint",sets:"4×20m"}
+      ]},
+      { name:"Day 4 — Lower B", rest:"120s rest", exercises:[
+        {name:"Front Squat",sets:"4×4"},{name:"Sumo Deadlift",sets:"4×4"},
+        {name:"Hip Thrust",sets:"3×8"},{name:"Leg Curl",sets:"3×10"},{name:"Seated Calf",sets:"4×12"}
+      ]},
+      { name:"Day 5 — Upper B", rest:"120s rest", exercises:[
+        {name:"Close-Grip Bench",sets:"4×6"},{name:"Barbell Row",sets:"4×6"},
+        {name:"Push Press",sets:"3×5"},{name:"Barbell Curl",sets:"3×10"},{name:"Dips",sets:"3×10"}
+      ]}
+    ]}
+  ]
+};
+
+// ── STORAGE ───────────────────────────────────────────
+const today = () => new Date().toISOString().slice(0,10);
+
+function loadSettings(){
+  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:140,currentWeek:1,split:3};
+  try{ return {...d,...JSON.parse(localStorage.getItem('ph_settings'))} }catch(e){return d}
+}
+function saveSettings(s){ localStorage.setItem('ph_settings',JSON.stringify(s)) }
+function getPhase(week){ return week<=4?0:week<=8?1:2 }
+function getPhaseColor(p){ return [getComputedStyle(document.documentElement).getPropertyValue('--red').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--orange').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--green').trim()][p]||'#fff' }
+function getPhaseVar(p){ return ['var(--red)','var(--orange)','var(--green)'][p]||'var(--text)' }
+
+function loadWorkout(date){ try{return JSON.parse(localStorage.getItem('ph_workout_'+date))||{}}catch(e){return{}} }
+function saveWorkout(date,d){ localStorage.setItem('ph_workout_'+date,JSON.stringify(d)) }
+function loadMeals(date){ try{return JSON.parse(localStorage.getItem('ph_meals_'+date))||[]}catch(e){return[]} }
+function saveMeals(date,m){ localStorage.setItem('ph_meals_'+date,JSON.stringify(m)) }
+function loadWater(date){ return parseInt(localStorage.getItem('ph_water_'+date))||0 }
+function saveWater(date,v){ localStorage.setItem('ph_water_'+date,v.toString()) }
+
+function calcStreak(){
+  let streak=0; const d=new Date();
+  // Check today first
+  const t=today();
+  const hasToday=loadMeals(t).length>0||loadWater(t)>0||Object.keys(loadWorkout(t)).length>0;
+  if(hasToday) streak=1;
+  // Go backwards
+  for(let i=1;i<365;i++){
+    d.setDate(d.getDate()-1);
+    const ds=d.toISOString().slice(0,10);
+    const has=loadMeals(ds).length>0||loadWater(ds)>0||Object.keys(loadWorkout(ds)).length>0;
+    if(has) streak++; else break;
+  }
+  return streak;
+}
+
+// ── STATE ─────────────────────────────────────────────
+let settings = loadSettings();
+let currentTab = 'home';
+let selectedDay = 0;
+
+// ── TAB SWITCHING ─────────────────────────────────────
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.classList.toggle('active',b.dataset.tab===tab);
+  });
+  updateAccent();
+  render();
+}
+
+function updateAccent(){
+  const p=getPhase(settings.currentWeek);
+  document.documentElement.style.setProperty('--accent',getPhaseVar(p));
+}
+
+// ── RENDER FUNCTIONS ──────────────────────────────────
+function render(){
+  updateAccent();
+  if(currentTab==='home') renderHome();
+  else if(currentTab==='workout') renderWorkout();
+  else if(currentTab==='food') renderFood();
+  else if(currentTab==='water') renderWater();
+}
+
+function renderHome(){
+  const el=document.getElementById('tab-home');
+  const s=settings;
+  const p=getPhase(s.currentWeek);
+  const phase=PROGRAMS[s.split][p];
+  const streak=calcStreak();
+  const meals=loadMeals(today());
+  const cal=meals.reduce((a,m)=>a+m.calories,0);
+  const pro=meals.reduce((a,m)=>a+m.protein,0);
+  const water=loadWater(today());
+  const wo=loadWorkout(today());
+  const totalEx=phase.days.reduce((a,d)=>a+d.exercises.length,0);
+  let doneEx=0;
+  Object.values(wo).forEach(d=>{ Object.values(d).forEach(v=>{if(v)doneEx++}) });
+
+  const greeting=s.name?`Hey, ${s.name}`:'Welcome';
+
+  el.innerHTML=`
+    <div class="card" style="text-align:center">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:4px">${greeting}</div>
+      <div class="streak">
+        <span class="streak-num">${streak}</span>
+        <span class="streak-label">day streak</span>
+      </div>
+      <span class="phase-badge" style="background:${phase.color};color:#000">${phase.name} · Week ${s.currentWeek}</span>
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-item">
+        <div class="summary-val" style="color:${phase.color}">${doneEx}</div>
+        <div class="summary-label">Exercises</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-val">${cal}</div>
+        <div class="summary-label">Calories</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-val" style="color:var(--blue)">${water}<span style="font-size:12px">oz</span></div>
+        <div class="summary-label">Water</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Nutrition</div>
+      <div class="pbar-wrap">
+        <div class="pbar-label"><span>Calories</span><span>${cal} / ${s.calorieTarget}</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,cal/s.calorieTarget*100)}%;background:${phase.color}"></div></div>
+      </div>
+      <div class="pbar-wrap" style="margin-bottom:0">
+        <div class="pbar-label"><span>Protein</span><span>${pro}g / ${s.proteinTarget}g</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,pro/s.proteinTarget*100)}%;background:${phase.color}"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Hydration</div>
+      <div class="pbar-wrap" style="margin-bottom:0">
+        <div class="pbar-label"><span>Water</span><span>${water}oz / ${s.waterTarget}oz</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,water/s.waterTarget*100)}%;background:var(--blue)"></div></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWorkout(){
+  const el=document.getElementById('tab-workout');
+  const s=settings;
+  const p=getPhase(s.currentWeek);
+  const program=PROGRAMS[s.split];
+  const phase=program[p];
+  const wo=loadWorkout(today());
+
+  let daysHtml=phase.days.map((d,i)=>
+    `<button class="day-pill ${i===selectedDay?'active':''}" onclick="selectDay(${i})">${d.name.split('—')[0].trim()}</button>`
+  ).join('');
+
+  let splitHtml=`<div class="split-toggle">
+    <button class="split-btn ${s.split===3?'active':''}" onclick="setSplit(3)">3-Day</button>
+    <button class="split-btn ${s.split===5?'active':''}" onclick="setSplit(5)">5-Day</button>
+  </div>`;
+
+  const day=phase.days[selectedDay];
+  if(!day){selectedDay=0;renderWorkout();return}
+
+  const dayKey='day_'+selectedDay;
+  const checks=wo[dayKey]||{};
+
+  let exHtml=day.exercises.map((ex,i)=>{
+    const done=!!checks[i];
+    return `<div class="ex-item">
+      <div class="ex-check ${done?'done':''}" onclick="toggleExercise(${selectedDay},${i})"></div>
+      <span class="ex-name ${done?'done':''}">${ex.name}</span>
+      <span class="ex-sets">${ex.sets}</span>
+    </div>`;
+  }).join('');
+
+  const doneCount=Object.values(checks).filter(Boolean).length;
+
+  el.innerHTML=`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="phase-badge" style="background:${phase.color};color:#000">${phase.name}</span>
+        <span style="font-size:11px;color:var(--text2)">${phase.weeks} · ${day.rest}</span>
+      </div>
+      ${splitHtml}
+      <div class="day-pills">${daysHtml}</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">${day.name}</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:14px">${doneCount}/${day.exercises.length} complete</div>
+      ${exHtml}
+    </div>
+  `;
+}
+
+function renderFood(){
+  const el=document.getElementById('tab-food');
+  const s=settings;
+  const p=getPhase(s.currentWeek);
+  const phase=PROGRAMS[s.split][p];
+  const meals=loadMeals(today());
+  const cal=meals.reduce((a,m)=>a+m.calories,0);
+  const pro=meals.reduce((a,m)=>a+m.protein,0);
+
+  let mealsHtml=meals.length?meals.map((m,i)=>`
+    <div class="meal-item">
+      <div>
+        <div class="meal-name">${m.name}</div>
+        <div class="meal-macros">${m.calories} cal · ${m.protein}g protein</div>
+      </div>
+      <button class="meal-del" onclick="deleteMeal(${i})">×</button>
+    </div>
+  `).join(''):'<div style="text-align:center;color:var(--text3);padding:20px;font-size:13px">No meals logged today</div>';
+
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Log Meal</div>
+      <div class="form-group">
+        <label>Meal Name</label>
+        <input class="form-input" id="meal-name" placeholder="e.g. Grilled Chicken Bowl"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Calories</label>
+          <input class="form-input" id="meal-cal" type="number" placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Protein (g)</label>
+          <input class="form-input" id="meal-pro" type="number" placeholder="0"/>
+        </div>
+      </div>
+      <button class="btn btn-accent" style="width:100%" onclick="addMeal()">Add Meal</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Today's Totals</div>
+      <div class="pbar-wrap">
+        <div class="pbar-label"><span>Calories</span><span>${cal} / ${s.calorieTarget}</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,cal/s.calorieTarget*100)}%;background:${phase.color}"></div></div>
+      </div>
+      <div class="pbar-wrap" style="margin-bottom:0">
+        <div class="pbar-label"><span>Protein</span><span>${pro}g / ${s.proteinTarget}g</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,pro/s.proteinTarget*100)}%;background:${phase.color}"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Meals</div>
+      ${mealsHtml}
+    </div>
+  `;
+}
+
+function renderWater(){
+  const el=document.getElementById('tab-water');
+  const s=settings;
+  const water=loadWater(today());
+  const pct=Math.min(100,water/s.waterTarget*100);
+  const r=70, circ=2*Math.PI*r;
+  const offset=circ-(pct/100)*circ;
+
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Hydration</div>
+      <div class="circle-wrap">
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--border)" stroke-width="10"/>
+          <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--blue)" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
+            style="transition:stroke-dashoffset .5s ease"/>
+        </svg>
+        <div class="circle-text" style="margin-top:-100px">${water}<span style="font-size:14px;color:var(--text2)">oz</span></div>
+        <div class="circle-sub">of ${s.waterTarget}oz goal</div>
+      </div>
+
+      <div class="quick-row">
+        <button class="btn btn-sm btn-ghost" onclick="addWater(8)">+8oz</button>
+        <button class="btn btn-sm btn-ghost" onclick="addWater(16)">+16oz</button>
+        <button class="btn btn-sm btn-ghost" onclick="addWater(32)">+32oz</button>
+      </div>
+
+      <div class="pbar-wrap" style="margin-top:16px;margin-bottom:4px">
+        <div class="pbar-label"><span>Progress</span><span>${Math.round(pct)}%</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:var(--blue)"></div></div>
+      </div>
+
+      <div style="text-align:center;margin-top:16px">
+        <button class="btn btn-sm" style="background:var(--border);color:var(--red)" onclick="resetWater()">Reset</button>
+      </div>
+    </div>
+  `;
+}
+
+// ── ACTIONS ───────────────────────────────────────────
+function selectDay(i){ selectedDay=i; renderWorkout() }
+
+function setSplit(n){
+  settings.split=n; saveSettings(settings);
+  selectedDay=0; render();
+}
+
+function toggleExercise(dayIdx,exIdx){
+  const d=today(), wo=loadWorkout(d);
+  const key='day_'+dayIdx;
+  if(!wo[key]) wo[key]={};
+  wo[key][exIdx]=!wo[key][exIdx];
+  saveWorkout(d,wo); renderWorkout();
+}
+
+function addMeal(){
+  const name=document.getElementById('meal-name').value.trim();
+  const cal=parseInt(document.getElementById('meal-cal').value)||0;
+  const pro=parseInt(document.getElementById('meal-pro').value)||0;
+  if(!name) return;
+  const meals=loadMeals(today());
+  meals.push({id:Date.now(),name,calories:cal,protein:pro});
+  saveMeals(today(),meals); renderFood();
+}
+
+function deleteMeal(i){
+  const meals=loadMeals(today());
+  meals.splice(i,1);
+  saveMeals(today(),meals); renderFood();
+}
+
+function addWater(oz){
+  const w=loadWater(today())+oz;
+  saveWater(today(),w); renderWater();
+}
+
+function resetWater(){
+  saveWater(today(),0); renderWater();
+}
+
+// ── SETTINGS ──────────────────────────────────────────
+function toggleSettings(){
+  const el=document.getElementById('settings-overlay');
+  if(el.style.display==='none'){
+    el.style.display='flex';
+    el.innerHTML=`<div class="overlay-inner">
+      <div class="overlay-header">
+        <h2>SETTINGS</h2>
+        <button class="overlay-close" onclick="toggleSettings()">×</button>
+      </div>
+      <div class="card">
+        <div class="form-group">
+          <label>Your Name</label>
+          <input class="form-input" id="set-name" value="${settings.name}"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Calorie Target</label>
+            <input class="form-input" id="set-cal" type="number" value="${settings.calorieTarget}"/>
+          </div>
+          <div class="form-group">
+            <label>Protein Target (g)</label>
+            <input class="form-input" id="set-pro" type="number" value="${settings.proteinTarget}"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Water Target (oz)</label>
+            <input class="form-input" id="set-water" type="number" value="${settings.waterTarget}"/>
+          </div>
+          <div class="form-group">
+            <label>Current Week (1-12)</label>
+            <input class="form-input" id="set-week" type="number" min="1" max="12" value="${settings.currentWeek}"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Program Split</label>
+          <div class="split-toggle" style="margin-top:6px">
+            <button class="split-btn ${settings.split===3?'active':''}" onclick="document.querySelectorAll('.split-btn')[2].classList.remove('active');this.classList.add('active')" id="set-split-3">3-Day</button>
+            <button class="split-btn ${settings.split===5?'active':''}" onclick="document.querySelectorAll('.split-btn')[2].classList.remove('active');document.getElementById('set-split-3').classList.remove('active');this.classList.add('active')" id="set-split-5">5-Day</button>
+          </div>
+        </div>
+        <button class="btn btn-accent" style="width:100%;margin-top:8px" onclick="saveSettingsForm()">Save</button>
+      </div>
+    </div>`;
+  } else {
+    el.style.display='none';
+  }
+}
+
+function saveSettingsForm(){
+  settings.name=document.getElementById('set-name').value.trim();
+  settings.calorieTarget=parseInt(document.getElementById('set-cal').value)||2200;
+  settings.proteinTarget=parseInt(document.getElementById('set-pro').value)||180;
+  settings.waterTarget=parseInt(document.getElementById('set-water').value)||140;
+  settings.currentWeek=Math.max(1,Math.min(12,parseInt(document.getElementById('set-week').value)||1));
+  settings.split=document.getElementById('set-split-5').classList.contains('active')?5:3;
+  saveSettings(settings);
+  toggleSettings();
+  selectedDay=0;
+  render();
+}
+
+// ── INIT ──────────────────────────────────────────────
+updateAccent();
+render();
+</script>
+</body>
+</html>
