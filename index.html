@@ -349,7 +349,12 @@ const today = () => new Date().toISOString().slice(0,10);
 
 function loadSettings(){
   const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12};
-  try{ return {...d,...JSON.parse(localStorage.getItem('ph_settings'))} }catch(e){return d}
+  try{
+    const s = {...d,...JSON.parse(localStorage.getItem('ph_settings'))};
+    // Migrate old oz water target to litres
+    if(s.waterTarget > 20) s.waterTarget = 4;
+    return s;
+  }catch(e){return d}
 }
 function saveSettings(s){ localStorage.setItem('ph_settings',JSON.stringify(s)) }
 function getPhase(week){ return week<=4?0:week<=8?1:2 }
