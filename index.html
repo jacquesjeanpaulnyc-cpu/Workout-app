@@ -511,6 +511,10 @@ function renderHome(){
         <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,water/s.waterTarget*100)}%;background:var(--blue)"></div></div>
       </div>
     </div>
+
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn btn-sm" style="background:var(--border);color:var(--red)" onclick="resetDay()">Reset Day</button>
+    </div>
   `;
 }
 
@@ -884,6 +888,18 @@ function addWater(litres){
 
 function resetWater(){
   saveWater(today(),0); renderWater();
+}
+
+function resetDay(){
+  if(!confirm('Reset entire day? This clears all workouts, meals, water, morning routine, and daily discipline for today.')) return;
+  const d=today();
+  localStorage.removeItem('ph_workout_'+d);
+  localStorage.removeItem('ph_meals_'+d);
+  localStorage.removeItem('ph_water_'+d);
+  localStorage.removeItem('ph_morning_'+d);
+  localStorage.removeItem('ph_daily_'+d);
+  localStorage.removeItem('ph_fasting');
+  render();
 }
 
 // ── SETTINGS ──────────────────────────────────────────
