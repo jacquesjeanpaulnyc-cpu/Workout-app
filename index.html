@@ -397,7 +397,7 @@ const PROGRAMS = {
 const today = () => new Date().toISOString().slice(0,10);
 
 function loadSettings(){
-  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12};
+  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12,apiKey:''};
   try{
     const s = {...d,...JSON.parse(localStorage.getItem('ph_settings'))};
     // Migrate old oz water target to litres
@@ -891,12 +891,13 @@ function renderFood(){
 
     <div class="card">
       <div class="card-title">Quick Add</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Search foods or scan a product barcode</div>
-      <div style="position:relative;margin-bottom:8px">
-        <input class="form-input" id="food-search-input" type="text" placeholder="Search food... (e.g. chicken breast, rice)" oninput="handleFoodSearch(this.value)" autocomplete="off" style="padding-right:36px"/>
-        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px">🔍</span>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Snap a meal photo or scan a product barcode</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-sm" style="flex:1;background:var(--accent,var(--green));color:#000" onclick="snapMeal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Snap Meal
+        </button>
       </div>
-      <div id="food-search-results" style="display:none;max-height:200px;overflow-y:auto;margin-bottom:8px"></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--green);border:1px solid var(--green);background:transparent" onclick="openScanner('nutrition')">
           Scan Calories
@@ -905,6 +906,7 @@ function renderFood(){
           Scan Ingredients
         </button>
       </div>
+      <input type="file" id="meal-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleMealPhoto(this)"/>
     </div>
 
     <div class="card">
@@ -1099,84 +1101,154 @@ function resetDay(){
   render();
 }
 
-// ── FOOD DATABASE & SEARCH ────────────────────────────
-const FOOD_DB=[
-  // Proteins
-  {name:'Chicken Breast (6oz)',cal:280,pro:53},{name:'Chicken Thigh (6oz)',cal:330,pro:43},
-  {name:'Ground Beef 90/10 (6oz)',cal:340,pro:48},{name:'Ground Turkey (6oz)',cal:300,pro:45},
-  {name:'Salmon Fillet (6oz)',cal:350,pro:40},{name:'Tuna (1 can)',cal:200,pro:42},
-  {name:'Shrimp (6oz)',cal:170,pro:36},{name:'Tilapia (6oz)',cal:220,pro:44},
-  {name:'Steak Sirloin (8oz)',cal:480,pro:60},{name:'Pork Chop (6oz)',cal:330,pro:44},
-  {name:'Turkey Breast (6oz)',cal:250,pro:50},{name:'Lamb Chop (6oz)',cal:420,pro:38},
-  {name:'Eggs (3 large)',cal:210,pro:18},{name:'Egg Whites (6)',cal:100,pro:22},
-  {name:'Tofu Firm (1 cup)',cal:180,pro:20},{name:'Tempeh (1 cup)',cal:320,pro:31},
-  {name:'Greek Yogurt (1 cup)',cal:130,pro:22},{name:'Cottage Cheese (1 cup)',cal:220,pro:28},
-  {name:'Whey Protein Shake',cal:130,pro:25},{name:'Protein Bar',cal:220,pro:20},
-  // Carbs
-  {name:'White Rice (1 cup cooked)',cal:205,pro:4},{name:'Brown Rice (1 cup cooked)',cal:215,pro:5},
-  {name:'Pasta (1 cup cooked)',cal:220,pro:8},{name:'Sweet Potato (1 medium)',cal:115,pro:2},
-  {name:'Baked Potato (1 large)',cal:280,pro:7},{name:'Oatmeal (1 cup cooked)',cal:155,pro:5},
-  {name:'Bread (2 slices)',cal:160,pro:6},{name:'Bagel (1 large)',cal:280,pro:10},
-  {name:'Tortilla Wrap (1 large)',cal:210,pro:6},{name:'Quinoa (1 cup cooked)',cal:220,pro:8},
-  // Fruits & Veggies
-  {name:'Banana (1 medium)',cal:105,pro:1},{name:'Apple (1 medium)',cal:95,pro:0},
-  {name:'Orange (1 medium)',cal:65,pro:1},{name:'Blueberries (1 cup)',cal:85,pro:1},
-  {name:'Strawberries (1 cup)',cal:50,pro:1},{name:'Avocado (1 whole)',cal:320,pro:4},
-  {name:'Broccoli (1 cup)',cal:55,pro:4},{name:'Spinach (2 cups raw)',cal:14,pro:2},
-  {name:'Mixed Salad (large)',cal:60,pro:3},{name:'Mixed Vegetables (1 cup)',cal:80,pro:4},
-  // Meals & Combos
-  {name:'Chicken & Rice Bowl',cal:550,pro:45},{name:'Steak & Potatoes',cal:700,pro:55},
-  {name:'Salmon & Veggies',cal:450,pro:42},{name:'Turkey Sandwich',cal:400,pro:30},
-  {name:'Chicken Salad',cal:350,pro:35},{name:'Burrito Bowl',cal:650,pro:38},
-  {name:'Stir Fry (chicken)',cal:500,pro:40},{name:'Pasta with Meat Sauce',cal:550,pro:30},
-  {name:'Grilled Chicken Wrap',cal:420,pro:35},{name:'Tuna Salad',cal:300,pro:35},
-  {name:'Burger (no bun)',cal:350,pro:30},{name:'Burger (with bun)',cal:550,pro:32},
-  {name:'Pizza Slice (1)',cal:285,pro:12},{name:'Sushi Roll (8pc)',cal:350,pro:15},
-  // Snacks & Other
-  {name:'Almonds (1/4 cup)',cal:210,pro:7},{name:'Peanut Butter (2 tbsp)',cal:190,pro:7},
-  {name:'Trail Mix (1/4 cup)',cal:175,pro:5},{name:'Rice Cakes (2)',cal:70,pro:2},
-  {name:'Hummus & Veggies',cal:180,pro:6},{name:'String Cheese (2)',cal:160,pro:14},
-  {name:'Beef Jerky (1oz)',cal:80,pro:13},{name:'Granola Bar',cal:190,pro:4},
-  // Drinks
-  {name:'Whole Milk (1 cup)',cal:150,pro:8},{name:'Almond Milk (1 cup)',cal:30,pro:1},
-  {name:'Orange Juice (1 cup)',cal:110,pro:2},{name:'Smoothie (fruit+protein)',cal:300,pro:25},
-  {name:'Coffee with Cream',cal:50,pro:1},{name:'Black Coffee',cal:5,pro:0}
-];
-
-let foodSearchTimeout=null;
-function handleFoodSearch(query){
-  clearTimeout(foodSearchTimeout);
-  const el=document.getElementById('food-search-results');
-  if(!query||query.length<2){el.style.display='none';return;}
-  foodSearchTimeout=setTimeout(()=>{
-    const q=query.toLowerCase();
-    const matches=FOOD_DB.filter(f=>f.name.toLowerCase().includes(q)).slice(0,8);
-    if(!matches.length){
-      el.style.display='block';
-      el.innerHTML='<div style="padding:12px;font-size:12px;color:var(--text3);text-align:center">No matches. Use manual entry below.</div>';
-      return;
-    }
-    el.style.display='block';
-    el.innerHTML=matches.map(f=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s" onclick="addFoodFromDB('${escAttr(f.name)}',${f.cal},${f.pro})" onmousedown="this.style.background='var(--card-hover)'" onmouseup="this.style.background=''">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(f.name)}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">${f.cal} cal · ${f.pro}g protein</div>
-        </div>
-        <span style="color:var(--accent,var(--green));font-size:18px;margin-left:8px;flex-shrink:0">+</span>
-      </div>
-    `).join('');
-  },150);
+// ── SNAP MEAL (AI Photo Analysis) ────────────────────
+function snapMeal(){
+  if(!settings.apiKey){
+    alert('Add your Anthropic API key in Settings to use Snap Meal.');
+    return;
+  }
+  document.getElementById('meal-photo-input').click();
 }
 
-function addFoodFromDB(name,cal,pro){
-  const today=dayKey();
-  const meals=JSON.parse(localStorage.getItem('ph_meals_'+today)||'[]');
-  meals.push({name,calories:cal,protein:pro});
-  localStorage.setItem('ph_meals_'+today,JSON.stringify(meals));
-  document.getElementById('food-search-input').value='';
-  document.getElementById('food-search-results').style.display='none';
-  render();
+function handleMealPhoto(input){
+  if(!input.files||!input.files[0]) return;
+  const file=input.files[0];
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    // Compress before sending
+    const img=new Image();
+    img.onload=async function(){
+      const canvas=document.createElement('canvas');
+      const maxSize=800;
+      let w=img.width, h=img.height;
+      if(w>h){h=h*(maxSize/w);w=maxSize}else{w=w*(maxSize/h);h=maxSize}
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const base64=canvas.toDataURL('image/jpeg',0.8).split(',')[1];
+      await analyzeMealPhoto(base64);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+async function analyzeMealPhoto(base64){
+  const el=document.getElementById('scanner-overlay');
+  el.style.display='flex';
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Analyzing Meal...</span>
+      <span></span>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+      <div style="text-align:center">
+        <img src="data:image/jpeg;base64,${base64}" style="width:200px;height:200px;object-fit:cover;border-radius:var(--radius);margin-bottom:16px"/>
+        <div style="font-size:14px;margin-bottom:8px">Estimating nutrition...</div>
+        <div style="font-size:11px;color:var(--text2)">Powered by Claude AI</div>
+      </div>
+    </div>
+  `;
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':settings.apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:300,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
+            {type:'text',text:'Analyze this meal photo. Respond ONLY with valid JSON, no other text. Format: {"name":"meal name","calories":number,"protein":number,"items":[{"name":"item","calories":number,"protein":number}]}. Estimate calories and protein (grams) as accurately as possible based on typical portion sizes. If you cannot identify food, respond: {"error":"Could not identify food"}'}
+          ]
+        }]
+      })
+    });
+
+    if(!resp.ok){
+      const errData=await resp.json().catch(()=>({}));
+      throw new Error(errData.error?.message||'API error: '+resp.status);
+    }
+
+    const data=await resp.json();
+    const text=data.content[0].text.trim();
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch=text.match(/\{[\s\S]*\}/);
+    if(!jsonMatch) throw new Error('Invalid response from AI');
+    const result=JSON.parse(jsonMatch[0]);
+
+    if(result.error){
+      showScannerError('','Could not identify food in the photo. Try again with a clearer image.');
+      return;
+    }
+
+    showMealPhotoResult(result,base64);
+
+  }catch(e){
+    showScannerError('',e.message||'Failed to analyze photo. Check your API key in Settings.');
+  }
+}
+
+function showMealPhotoResult(result,base64){
+  const el=document.getElementById('scanner-overlay');
+  const itemsHtml=(result.items||[]).map(it=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${escHtml(it.name)}</span>
+      <span style="color:var(--text2)">${it.calories} cal · ${it.protein}g</span>
+    </div>`
+  ).join('');
+
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Meal Analysis</span>
+      <span></span>
+    </div>
+    <div class="product-result">
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:start;margin-bottom:14px">
+          <img src="data:image/jpeg;base64,${base64}" style="width:64px;height:64px;border-radius:10px;object-fit:cover"/>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">${escHtml(result.name)}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px">AI Estimate</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:14px;text-align:center">
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:12px">
+            <div style="font-size:22px;font-weight:700">${result.calories}</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">CALORIES</div>
+          </div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:12px">
+            <div style="font-size:22px;font-weight:700;color:var(--green)">${result.protein}g</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">PROTEIN</div>
+          </div>
+        </div>
+
+        ${itemsHtml?`<div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Breakdown</div>
+          ${itemsHtml}
+        </div>`:''}
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-accent" style="flex:1" onclick="addScannedMeal('${escAttr(result.name)}',${result.calories},${result.protein})">Add to Meals</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="closeScanner()">Cancel</button>
+      </div>
+
+      <div style="text-align:center;margin-top:12px">
+        <span style="font-size:10px;color:var(--text3)">Estimates may vary. Adjust values if needed.</span>
+      </div>
+    </div>
+  `;
 }
 
 // ── BARCODE SCANNER ──────────────────────────────────
@@ -1554,6 +1626,11 @@ function toggleSettings(){
             <button class="split-btn ${settings.split===5?'active':''}" onclick="document.getElementById('set-split-3').classList.remove('active');this.classList.add('active')" id="set-split-5">5-Day</button>
           </div>
         </div>
+        <div class="form-group">
+          <label>Anthropic API Key (for Snap Meal)</label>
+          <input class="form-input" id="set-apikey" type="password" placeholder="sk-ant-..." value="${settings.apiKey||''}"/>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">Stored locally. Used for AI meal photo analysis.</div>
+        </div>
         <button class="btn btn-accent" style="width:100%;margin-top:8px" onclick="saveSettingsForm()">Save</button>
       </div>
     </div>`;
@@ -1569,6 +1646,7 @@ function saveSettingsForm(){
   settings.waterTarget=parseFloat(document.getElementById('set-water').value)||4;
   settings.currentWeek=Math.max(1,Math.min(12,parseInt(document.getElementById('set-week').value)||1));
   settings.split=document.getElementById('set-split-5').classList.contains('active')?5:3;
+  settings.apiKey=document.getElementById('set-apikey').value.trim();
   saveSettings(settings);
   toggleSettings();
   selectedDay=0;
