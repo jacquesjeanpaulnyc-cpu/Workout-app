@@ -397,7 +397,7 @@ const PROGRAMS = {
 const today = () => new Date().toISOString().slice(0,10);
 
 function loadSettings(){
-  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12};
+  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12,apiKey:''};
   try{
     const s = {...d,...JSON.parse(localStorage.getItem('ph_settings'))};
     // Migrate old oz water target to litres
@@ -890,18 +890,23 @@ function renderFood(){
     ${fastHtml}
 
     <div class="card">
-      <div class="card-title">Barcode Scanner</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Scan a product to auto-fill nutrition or check ingredients</div>
+      <div class="card-title">Quick Add</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Snap a meal photo or scan a product barcode</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-sm" style="flex:1;background:var(--accent,var(--green));color:#000" onclick="snapMeal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Snap Meal
+        </button>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--green);border:1px solid var(--green);background:transparent" onclick="openScanner('nutrition')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7v0M7 12v0M7 17v0M12 7v0M12 12v0M12 17v0M17 7v0M17 12v0M17 17v0"/></svg>
           Scan Calories
         </button>
         <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--orange);border:1px solid var(--orange);background:transparent" onclick="openScanner('ingredients')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
           Scan Ingredients
         </button>
       </div>
+      <input type="file" id="meal-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleMealPhoto(this)"/>
     </div>
 
     <div class="card">
@@ -1094,6 +1099,156 @@ function resetDay(){
   localStorage.removeItem('ph_daily_'+d);
   localStorage.removeItem('ph_fasting');
   render();
+}
+
+// ── SNAP MEAL (AI Photo Analysis) ────────────────────
+function snapMeal(){
+  if(!settings.apiKey){
+    alert('Add your Anthropic API key in Settings to use Snap Meal.');
+    return;
+  }
+  document.getElementById('meal-photo-input').click();
+}
+
+function handleMealPhoto(input){
+  if(!input.files||!input.files[0]) return;
+  const file=input.files[0];
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    // Compress before sending
+    const img=new Image();
+    img.onload=async function(){
+      const canvas=document.createElement('canvas');
+      const maxSize=800;
+      let w=img.width, h=img.height;
+      if(w>h){h=h*(maxSize/w);w=maxSize}else{w=w*(maxSize/h);h=maxSize}
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const base64=canvas.toDataURL('image/jpeg',0.8).split(',')[1];
+      await analyzeMealPhoto(base64);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+async function analyzeMealPhoto(base64){
+  const el=document.getElementById('scanner-overlay');
+  el.style.display='flex';
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Analyzing Meal...</span>
+      <span></span>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+      <div style="text-align:center">
+        <img src="data:image/jpeg;base64,${base64}" style="width:200px;height:200px;object-fit:cover;border-radius:var(--radius);margin-bottom:16px"/>
+        <div style="font-size:14px;margin-bottom:8px">Estimating nutrition...</div>
+        <div style="font-size:11px;color:var(--text2)">Powered by Claude AI</div>
+      </div>
+    </div>
+  `;
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':settings.apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:300,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
+            {type:'text',text:'Analyze this meal photo. Respond ONLY with valid JSON, no other text. Format: {"name":"meal name","calories":number,"protein":number,"items":[{"name":"item","calories":number,"protein":number}]}. Estimate calories and protein (grams) as accurately as possible based on typical portion sizes. If you cannot identify food, respond: {"error":"Could not identify food"}'}
+          ]
+        }]
+      })
+    });
+
+    if(!resp.ok){
+      const errData=await resp.json().catch(()=>({}));
+      throw new Error(errData.error?.message||'API error: '+resp.status);
+    }
+
+    const data=await resp.json();
+    const text=data.content[0].text.trim();
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch=text.match(/\{[\s\S]*\}/);
+    if(!jsonMatch) throw new Error('Invalid response from AI');
+    const result=JSON.parse(jsonMatch[0]);
+
+    if(result.error){
+      showScannerError('','Could not identify food in the photo. Try again with a clearer image.');
+      return;
+    }
+
+    showMealPhotoResult(result,base64);
+
+  }catch(e){
+    showScannerError('',e.message||'Failed to analyze photo. Check your API key in Settings.');
+  }
+}
+
+function showMealPhotoResult(result,base64){
+  const el=document.getElementById('scanner-overlay');
+  const itemsHtml=(result.items||[]).map(it=>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${escHtml(it.name)}</span>
+      <span style="color:var(--text2)">${it.calories} cal · ${it.protein}g</span>
+    </div>`
+  ).join('');
+
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Meal Analysis</span>
+      <span></span>
+    </div>
+    <div class="product-result">
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:start;margin-bottom:14px">
+          <img src="data:image/jpeg;base64,${base64}" style="width:64px;height:64px;border-radius:10px;object-fit:cover"/>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">${escHtml(result.name)}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:4px">AI Estimate</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:14px;text-align:center">
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:12px">
+            <div style="font-size:22px;font-weight:700">${result.calories}</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">CALORIES</div>
+          </div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:12px">
+            <div style="font-size:22px;font-weight:700;color:var(--green)">${result.protein}g</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">PROTEIN</div>
+          </div>
+        </div>
+
+        ${itemsHtml?`<div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Breakdown</div>
+          ${itemsHtml}
+        </div>`:''}
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-accent" style="flex:1" onclick="addScannedMeal('${escAttr(result.name)}',${result.calories},${result.protein})">Add to Meals</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="closeScanner()">Cancel</button>
+      </div>
+
+      <div style="text-align:center;margin-top:12px">
+        <span style="font-size:10px;color:var(--text3)">Estimates may vary. Adjust values if needed.</span>
+      </div>
+    </div>
+  `;
 }
 
 // ── BARCODE SCANNER ──────────────────────────────────
@@ -1471,6 +1626,11 @@ function toggleSettings(){
             <button class="split-btn ${settings.split===5?'active':''}" onclick="document.getElementById('set-split-3').classList.remove('active');this.classList.add('active')" id="set-split-5">5-Day</button>
           </div>
         </div>
+        <div class="form-group">
+          <label>Anthropic API Key (for Snap Meal)</label>
+          <input class="form-input" id="set-apikey" type="password" placeholder="sk-ant-..." value="${settings.apiKey||''}"/>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">Stored locally. Used for AI meal photo analysis.</div>
+        </div>
         <button class="btn btn-accent" style="width:100%;margin-top:8px" onclick="saveSettingsForm()">Save</button>
       </div>
     </div>`;
@@ -1486,6 +1646,7 @@ function saveSettingsForm(){
   settings.waterTarget=parseFloat(document.getElementById('set-water').value)||4;
   settings.currentWeek=Math.max(1,Math.min(12,parseInt(document.getElementById('set-week').value)||1));
   settings.split=document.getElementById('set-split-5').classList.contains('active')?5:3;
+  settings.apiKey=document.getElementById('set-apikey').value.trim();
   saveSettings(settings);
   toggleSettings();
   selectedDay=0;
