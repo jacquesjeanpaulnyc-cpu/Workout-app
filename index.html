@@ -540,9 +540,8 @@ function renderDailyCard(){
   const hasPhoto=!!daily.photo;
 
   return `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="margin-bottom:12px">
       <div class="card-title" style="margin-bottom:0">Daily Discipline</div>
-      <span style="font-size:11px;color:var(--purple)"">75 Hard</span>
     </div>
 
     <div class="ex-item">
@@ -874,7 +873,7 @@ function deleteMeal(i){
 }
 
 function addWater(litres){
-  const w=Math.round((loadWater(today())+litres)*100)/100;
+  const w=Math.min(settings.waterTarget,Math.round((loadWater(today())+litres)*100)/100);
   saveWater(today(),w); renderWater();
 }
 
