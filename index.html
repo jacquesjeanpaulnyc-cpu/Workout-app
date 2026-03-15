@@ -12,6 +12,7 @@
   --bg:#0D0D0D;--card:#111;--card-hover:#1a1a1a;--border:#222;
   --text:#fff;--text2:#999;--text3:#555;
   --red:#E74C3C;--orange:#E67E22;--green:#27AE60;--blue:#3B82F6;
+  --purple:#9B59B6;
   --radius:14px;
 }
 html,body{height:100%;background:var(--bg);color:var(--text);
@@ -52,9 +53,11 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 .pbar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
 .pbar-fill{height:100%;border-radius:3px;transition:width .5s ease}
 
-/* Circular Progress */
+/* Circular Progress — fixed positioning */
 .circle-wrap{display:flex;flex-direction:column;align-items:center;margin:16px 0}
-.circle-wrap svg{transform:rotate(-90deg)}
+.circle-container{position:relative;width:180px;height:180px}
+.circle-container svg{transform:rotate(-90deg);display:block}
+.circle-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .circle-text{font-size:28px;font-weight:700}
 .circle-sub{font-size:12px;color:var(--text2);margin-top:4px}
 
@@ -68,7 +71,7 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 
 /* Quick add row */
 .quick-row{display:flex;gap:8px;justify-content:center;margin:16px 0}
-.quick-row button{flex:1;max-width:100px}
+.quick-row button{flex:1;max-width:120px}
 
 /* Exercise list */
 .ex-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -137,6 +140,21 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 .summary-val{font-size:22px;font-weight:700}
 .summary-label{font-size:10px;color:var(--text2);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
 
+/* Fasting timer */
+.fast-ring{position:relative;width:140px;height:140px}
+.fast-ring svg{transform:rotate(-90deg);display:block}
+.fast-ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.fast-time{font-size:22px;font-weight:700}
+.fast-label{font-size:10px;color:var(--text2);margin-top:2px;text-transform:uppercase;letter-spacing:1px}
+.fast-status{font-size:12px;font-weight:600;margin-top:2px}
+
+/* Photo thumbnail */
+.photo-thumb{width:60px;height:60px;border-radius:10px;object-fit:cover;border:2px solid var(--border)}
+.photo-upload{display:none}
+.photo-btn{display:flex;align-items:center;justify-content:center;width:60px;height:60px;
+  border-radius:10px;border:2px dashed var(--text3);cursor:pointer;color:var(--text3);font-size:24px}
+.photo-btn:hover{border-color:var(--text2);color:var(--text2)}
+
 /* Animations */
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .card{animation:fadeIn .3s ease}
@@ -194,13 +212,11 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 <script>
 // ── DATA ──────────────────────────────────────────────
 const MORNING_ROUTINE = {
-  name:"20-Min Morning Wake-Up", exercises:[
-    {name:"Jump Rope Warm-Up",sets:"3 min"},
-    {name:"Pull-Ups",sets:"3×8"},
-    {name:"Push-Ups",sets:"3×15"},
-    {name:"Ab Roller",sets:"3×10"},
-    {name:"Jump Rope Intervals",sets:"3×2 min"},
-    {name:"Dead Hang (Pull-Up Bar)",sets:"2×30s"}
+  name:"Morning Wake-Up", exercises:[
+    {name:"Jump Rope",sets:"10 min"},
+    {name:"Push-Ups",sets:"4×25"},
+    {name:"Pull-Ups",sets:"Max reps"},
+    {name:"Ab Roller",sets:"4×15"}
   ]
 };
 
@@ -332,7 +348,7 @@ const PROGRAMS = {
 const today = () => new Date().toISOString().slice(0,10);
 
 function loadSettings(){
-  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:140,currentWeek:1,split:3};
+  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12};
   try{ return {...d,...JSON.parse(localStorage.getItem('ph_settings'))} }catch(e){return d}
 }
 function saveSettings(s){ localStorage.setItem('ph_settings',JSON.stringify(s)) }
@@ -346,18 +362,20 @@ function loadWorkout(date){ try{return JSON.parse(localStorage.getItem('ph_worko
 function saveWorkout(date,d){ localStorage.setItem('ph_workout_'+date,JSON.stringify(d)) }
 function loadMeals(date){ try{return JSON.parse(localStorage.getItem('ph_meals_'+date))||[]}catch(e){return[]} }
 function saveMeals(date,m){ localStorage.setItem('ph_meals_'+date,JSON.stringify(m)) }
-function loadWater(date){ return parseInt(localStorage.getItem('ph_water_'+date))||0 }
+function loadWater(date){ return parseFloat(localStorage.getItem('ph_water_'+date))||0 }
 function saveWater(date,v){ localStorage.setItem('ph_water_'+date,v.toString()) }
 function loadMorning(date){ try{return JSON.parse(localStorage.getItem('ph_morning_'+date))||{}}catch(e){return{}} }
 function saveMorning(date,d){ localStorage.setItem('ph_morning_'+date,JSON.stringify(d)) }
+function loadFasting(){ try{return JSON.parse(localStorage.getItem('ph_fasting'))||{}}catch(e){return{}} }
+function saveFasting(d){ localStorage.setItem('ph_fasting',JSON.stringify(d)) }
+function loadDaily(date){ try{return JSON.parse(localStorage.getItem('ph_daily_'+date))||{}}catch(e){return{}} }
+function saveDaily(date,d){ localStorage.setItem('ph_daily_'+date,JSON.stringify(d)) }
 
 function calcStreak(){
   let streak=0; const d=new Date();
-  // Check today first
   const t=today();
   const hasToday=loadMeals(t).length>0||loadWater(t)>0||Object.keys(loadWorkout(t)).length>0||Object.keys(loadMorning(t)).length>0;
   if(hasToday) streak=1;
-  // Go backwards
   for(let i=1;i<365;i++){
     d.setDate(d.getDate()-1);
     const ds=d.toISOString().slice(0,10);
@@ -367,10 +385,37 @@ function calcStreak(){
   return streak;
 }
 
+// ── FASTING HELPERS ──────────────────────────────────
+function getFastingState(){
+  const f=loadFasting();
+  if(!f.active) return {active:false,elapsed:0,duration:0,type:null,inEatingWindow:false};
+  const start=new Date(f.startTime).getTime();
+  const now=Date.now();
+  const elapsed=(now-start)/1000/60/60; // hours
+  const duration=f.duration||16;
+  return {active:true,elapsed,duration,type:f.type||'16:8',
+    remaining:Math.max(0,duration-elapsed),
+    complete:elapsed>=duration,
+    inEatingWindow:elapsed>=duration,
+    startTime:f.startTime};
+}
+
+function startFast(type){
+  const duration=type==='24'?24:16;
+  saveFasting({active:true,startTime:new Date().toISOString(),duration,type});
+  renderFood();
+}
+
+function endFast(){
+  saveFasting({active:false});
+  renderFood();
+}
+
 // ── STATE ─────────────────────────────────────────────
 let settings = loadSettings();
 let currentTab = 'home';
 let selectedDay = 0;
+let fastingInterval = null;
 
 // ── TAB SWITCHING ─────────────────────────────────────
 function switchTab(tab){
@@ -392,6 +437,7 @@ function updateAccent(){
 // ── RENDER FUNCTIONS ──────────────────────────────────
 function render(){
   updateAccent();
+  if(fastingInterval) clearInterval(fastingInterval);
   if(currentTab==='home') renderHome();
   else if(currentTab==='workout') renderWorkout();
   else if(currentTab==='food') renderFood();
@@ -409,10 +455,8 @@ function renderHome(){
   const pro=meals.reduce((a,m)=>a+m.protein,0);
   const water=loadWater(today());
   const wo=loadWorkout(today());
-  const totalEx=phase.days.reduce((a,d)=>a+d.exercises.length,0);
   let doneEx=0;
   Object.values(wo).forEach(d=>{ Object.values(d).forEach(v=>{if(v)doneEx++}) });
-
   const greeting=s.name?`Hey, ${s.name}`:'Welcome';
 
   el.innerHTML=`
@@ -426,6 +470,7 @@ function renderHome(){
     </div>
 
     ${renderMorningCard()}
+    ${renderDailyCard()}
 
     <div class="summary-row">
       <div class="summary-item">
@@ -437,7 +482,7 @@ function renderHome(){
         <div class="summary-label">Calories</div>
       </div>
       <div class="summary-item">
-        <div class="summary-val" style="color:var(--blue)">${water}<span style="font-size:12px">oz</span></div>
+        <div class="summary-val" style="color:var(--blue)">${water.toFixed(1)}<span style="font-size:12px">L</span></div>
         <div class="summary-label">Water</div>
       </div>
     </div>
@@ -457,11 +502,69 @@ function renderHome(){
     <div class="card">
       <div class="card-title">Hydration</div>
       <div class="pbar-wrap" style="margin-bottom:0">
-        <div class="pbar-label"><span>Water</span><span>${water}oz / ${s.waterTarget}oz</span></div>
+        <div class="pbar-label"><span>Water</span><span>${water.toFixed(1)}L / ${s.waterTarget}L</span></div>
         <div class="pbar"><div class="pbar-fill" style="width:${Math.min(100,water/s.waterTarget*100)}%;background:var(--blue)"></div></div>
       </div>
     </div>
   `;
+}
+
+function renderMorningCard(){
+  const m=loadMorning(today());
+  const total=MORNING_ROUTINE.exercises.length;
+  const done=Object.values(m).filter(Boolean).length;
+  const allDone=done===total;
+
+  let exHtml=MORNING_ROUTINE.exercises.map((ex,i)=>{
+    const checked=!!m[i];
+    return `<div class="ex-item">
+      <div class="ex-check ${checked?'done':''}" onclick="toggleMorning(${i})"></div>
+      <span class="ex-name ${checked?'done':''}">${ex.name}</span>
+      <span class="ex-sets">${ex.sets}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">Morning Routine</div>
+      <span style="font-size:11px;color:${allDone?'var(--green)':'var(--text2)'}">${allDone?'✓ Complete':done+'/'+total}</span>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">${MORNING_ROUTINE.name}</div>
+    ${exHtml}
+  </div>`;
+}
+
+function renderDailyCard(){
+  const daily=loadDaily(today());
+  const reading=!!daily.reading;
+  const hasPhoto=!!daily.photo;
+
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">Daily Discipline</div>
+      <span style="font-size:11px;color:var(--purple)"">75 Hard</span>
+    </div>
+
+    <div class="ex-item">
+      <div class="ex-check ${reading?'done':''}" onclick="toggleReading()" style="${reading?'border-color:var(--purple);background:var(--purple)':''}"></div>
+      <span class="ex-name ${reading?'done':''}">Read 10 Pages</span>
+      <span class="ex-sets">Daily</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0 0">
+      <div>
+        ${hasPhoto
+          ?`<img src="${daily.photo}" class="photo-thumb" onclick="viewPhoto()"/>`
+          :`<label class="photo-btn" for="photo-input">+</label>`}
+        <input type="file" id="photo-input" class="photo-upload" accept="image/*" capture="environment" onchange="handlePhoto(this)"/>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:13px">${hasPhoto?'Transformation Photo':'Take Progress Photo'}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${hasPhoto?'Captured today':'Tap + to capture'}</div>
+      </div>
+      ${hasPhoto?`<button class="meal-del" onclick="deletePhoto()" title="Remove photo">×</button>`:''}
+    </div>
+  </div>`;
 }
 
 function renderWorkout(){
@@ -522,6 +625,70 @@ function renderFood(){
   const cal=meals.reduce((a,m)=>a+m.calories,0);
   const pro=meals.reduce((a,m)=>a+m.protein,0);
 
+  // Fasting state
+  const fs=getFastingState();
+
+  let fastHtml='';
+  if(fs.active){
+    const hrs=Math.floor(fs.elapsed);
+    const mins=Math.floor((fs.elapsed-hrs)*60);
+    const remHrs=Math.floor(fs.remaining);
+    const remMins=Math.floor((fs.remaining-remHrs)*60);
+    const pct=Math.min(100,(fs.elapsed/fs.duration)*100);
+    const r=55, circ=2*Math.PI*r;
+    const offset=circ-(pct/100)*circ;
+    const ringColor=fs.complete?'var(--green)':'var(--orange)';
+    const statusText=fs.complete?'EATING WINDOW':'FASTING';
+
+    fastHtml=`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">Intermittent Fasting</div>
+        <span class="phase-badge" style="background:${fs.type==='24'?'var(--red)':'var(--orange)'};color:#000">${fs.type==='24'?'24hr Fast':'16:8'}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px">
+        <div class="fast-ring">
+          <svg width="140" height="140" viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--border)" stroke-width="8"/>
+            <circle cx="70" cy="70" r="${r}" fill="none" stroke="${ringColor}" stroke-width="8"
+              stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
+              style="transition:stroke-dashoffset .5s ease"/>
+          </svg>
+          <div class="fast-ring-inner">
+            <div class="fast-time">${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}</div>
+            <div class="fast-label">Elapsed</div>
+            <div class="fast-status" style="color:${ringColor}">${statusText}</div>
+          </div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+            ${fs.complete
+              ?`Fast complete! You can eat now.`
+              :`${remHrs}h ${remMins}m remaining`}
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">
+            Started: ${new Date(fs.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+          </div>
+          <button class="btn btn-sm ${fs.complete?'btn-accent':'btn-ghost'}" style="${!fs.complete?'color:var(--red)':''}" onclick="endFast()">${fs.complete?'End Session':'Break Fast'}</button>
+        </div>
+      </div>
+    </div>`;
+
+    // Auto-update every 30s
+    if(fastingInterval) clearInterval(fastingInterval);
+    fastingInterval=setInterval(()=>{if(currentTab==='food') renderFood()},30000);
+  } else {
+    const dayOfWeek=new Date().getDay(); // 0=Sun
+    fastHtml=`<div class="card">
+      <div class="card-title">Intermittent Fasting</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Start a fasting window</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--orange);border:1px solid var(--orange);background:transparent" onclick="startFast('16:8')">16:8 Fast</button>
+        <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--red);border:1px solid var(--red);background:transparent" onclick="startFast('24')">24hr Fast</button>
+      </div>
+      ${dayOfWeek===1?'<div style="font-size:11px;color:var(--orange);margin-top:10px;text-align:center">Reminder: Weekly 24hr fast day</div>':''}
+    </div>`;
+  }
+
   let mealsHtml=meals.length?meals.map((m,i)=>`
     <div class="meal-item">
       <div>
@@ -533,6 +700,8 @@ function renderFood(){
   `).join(''):'<div style="text-align:center;color:var(--text3);padding:20px;font-size:13px">No meals logged today</div>';
 
   el.innerHTML=`
+    ${fastHtml}
+
     <div class="card">
       <div class="card-title">Log Meal</div>
       <div class="form-group">
@@ -583,20 +752,24 @@ function renderWater(){
     <div class="card">
       <div class="card-title">Hydration</div>
       <div class="circle-wrap">
-        <svg width="180" height="180" viewBox="0 0 180 180">
-          <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--border)" stroke-width="10"/>
-          <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--blue)" stroke-width="10"
-            stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
-            style="transition:stroke-dashoffset .5s ease"/>
-        </svg>
-        <div class="circle-text" style="margin-top:-100px">${water}<span style="font-size:14px;color:var(--text2)">oz</span></div>
-        <div class="circle-sub">of ${s.waterTarget}oz goal</div>
+        <div class="circle-container">
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--border)" stroke-width="10"/>
+            <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--blue)" stroke-width="10"
+              stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
+              style="transition:stroke-dashoffset .5s ease"/>
+          </svg>
+          <div class="circle-inner">
+            <div class="circle-text">${water.toFixed(1)}<span style="font-size:14px;color:var(--text2)">L</span></div>
+            <div class="circle-sub">of ${s.waterTarget}L goal</div>
+          </div>
+        </div>
       </div>
 
       <div class="quick-row">
-        <button class="btn btn-sm btn-ghost" onclick="addWater(8)">+8oz</button>
-        <button class="btn btn-sm btn-ghost" onclick="addWater(16)">+16oz</button>
-        <button class="btn btn-sm btn-ghost" onclick="addWater(32)">+32oz</button>
+        <button class="btn btn-sm btn-ghost" onclick="addWater(0.25)">+0.25L</button>
+        <button class="btn btn-sm btn-ghost" onclick="addWater(0.5)">+0.5L</button>
+        <button class="btn btn-sm btn-ghost" onclick="addWater(1)">+1L</button>
       </div>
 
       <div class="pbar-wrap" style="margin-top:16px;margin-bottom:4px">
@@ -611,36 +784,62 @@ function renderWater(){
   `;
 }
 
-function renderMorningCard(){
-  const m=loadMorning(today());
-  const total=MORNING_ROUTINE.exercises.length;
-  const done=Object.values(m).filter(Boolean).length;
-  const allDone=done===total;
-
-  let exHtml=MORNING_ROUTINE.exercises.map((ex,i)=>{
-    const checked=!!m[i];
-    return `<div class="ex-item">
-      <div class="ex-check ${checked?'done':''}" onclick="toggleMorning(${i})"></div>
-      <span class="ex-name ${checked?'done':''}">${ex.name}</span>
-      <span class="ex-sets">${ex.sets}</span>
-    </div>`;
-  }).join('');
-
-  return `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div class="card-title" style="margin-bottom:0">Morning Routine</div>
-      <span style="font-size:11px;color:${allDone?'var(--green)':'var(--text2)'}">${allDone?'✓ Complete':done+'/'+total}</span>
-    </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">${MORNING_ROUTINE.name}</div>
-    ${exHtml}
-  </div>`;
-}
-
 // ── ACTIONS ───────────────────────────────────────────
 function toggleMorning(i){
   const d=today(), m=loadMorning(d);
   m[i]=!m[i];
   saveMorning(d,m); renderHome();
+}
+
+function toggleReading(){
+  const d=today(), daily=loadDaily(d);
+  daily.reading=!daily.reading;
+  saveDaily(d,daily); renderHome();
+}
+
+function handlePhoto(input){
+  if(!input.files||!input.files[0]) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    // Compress the image
+    const img=new Image();
+    img.onload=function(){
+      const canvas=document.createElement('canvas');
+      const maxSize=400;
+      let w=img.width, h=img.height;
+      if(w>h){h=h*(maxSize/w);w=maxSize}else{w=w*(maxSize/h);h=maxSize}
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const compressed=canvas.toDataURL('image/jpeg',0.7);
+      const d=today(), daily=loadDaily(d);
+      daily.photo=compressed;
+      saveDaily(d,daily);
+      renderHome();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function viewPhoto(){
+  const daily=loadDaily(today());
+  if(!daily.photo) return;
+  const overlay=document.getElementById('settings-overlay');
+  overlay.style.display='flex';
+  overlay.innerHTML=`<div class="overlay-inner" style="display:flex;flex-direction:column;align-items:center;padding-top:40px">
+    <div class="overlay-header" style="width:100%">
+      <h2>PROGRESS PHOTO</h2>
+      <button class="overlay-close" onclick="document.getElementById('settings-overlay').style.display='none'">×</button>
+    </div>
+    <img src="${daily.photo}" style="width:100%;max-width:360px;border-radius:var(--radius);margin-top:12px"/>
+    <div style="font-size:12px;color:var(--text2);margin-top:12px">${today()}</div>
+  </div>`;
+}
+
+function deletePhoto(){
+  const d=today(), daily=loadDaily(d);
+  delete daily.photo;
+  saveDaily(d,daily); renderHome();
 }
 
 function selectDay(i){ selectedDay=i; renderWorkout() }
@@ -674,8 +873,8 @@ function deleteMeal(i){
   saveMeals(today(),meals); renderFood();
 }
 
-function addWater(oz){
-  const w=loadWater(today())+oz;
+function addWater(litres){
+  const w=Math.round((loadWater(today())+litres)*100)/100;
   saveWater(today(),w); renderWater();
 }
 
@@ -710,8 +909,8 @@ function toggleSettings(){
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Water Target (oz)</label>
-            <input class="form-input" id="set-water" type="number" value="${settings.waterTarget}"/>
+            <label>Water Target (L)</label>
+            <input class="form-input" id="set-water" type="number" step="0.5" value="${settings.waterTarget}"/>
           </div>
           <div class="form-group">
             <label>Current Week (1-12)</label>
@@ -721,8 +920,8 @@ function toggleSettings(){
         <div class="form-group">
           <label>Program Split</label>
           <div class="split-toggle" style="margin-top:6px">
-            <button class="split-btn ${settings.split===3?'active':''}" onclick="document.querySelectorAll('.split-btn')[2].classList.remove('active');this.classList.add('active')" id="set-split-3">3-Day</button>
-            <button class="split-btn ${settings.split===5?'active':''}" onclick="document.querySelectorAll('.split-btn')[2].classList.remove('active');document.getElementById('set-split-3').classList.remove('active');this.classList.add('active')" id="set-split-5">5-Day</button>
+            <button class="split-btn ${settings.split===3?'active':''}" onclick="document.getElementById('set-split-5').classList.remove('active');this.classList.add('active')" id="set-split-3">3-Day</button>
+            <button class="split-btn ${settings.split===5?'active':''}" onclick="document.getElementById('set-split-3').classList.remove('active');this.classList.add('active')" id="set-split-5">5-Day</button>
           </div>
         </div>
         <button class="btn btn-accent" style="width:100%;margin-top:8px" onclick="saveSettingsForm()">Save</button>
@@ -737,7 +936,7 @@ function saveSettingsForm(){
   settings.name=document.getElementById('set-name').value.trim();
   settings.calorieTarget=parseInt(document.getElementById('set-cal').value)||2200;
   settings.proteinTarget=parseInt(document.getElementById('set-pro').value)||180;
-  settings.waterTarget=parseInt(document.getElementById('set-water').value)||140;
+  settings.waterTarget=parseFloat(document.getElementById('set-water').value)||4;
   settings.currentWeek=Math.max(1,Math.min(12,parseInt(document.getElementById('set-week').value)||1));
   settings.split=document.getElementById('set-split-5').classList.contains('active')?5:3;
   saveSettings(settings);
