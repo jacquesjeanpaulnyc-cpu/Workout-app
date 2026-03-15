@@ -10,7 +10,7 @@ A fitness tracking web app called **Powerhouse** built as a single `index.html` 
 
 ## Features
 - **4 tabs**: Home, Workout, Food, Water (bottom nav)
-- **Home**: Day streak, summary cards (exercises done, calories, water), nutrition/hydration progress bars
+- **Home**: Day streak, **morning routine checklist** (pull-ups, jump rope, push-ups, ab roller — 20 min), summary cards (exercises done, calories, water), nutrition/hydration progress bars
 - **Workout**: 12-week program with 3-day and 5-day split options, 3 phases (Phase 1: weeks 1-4, Phase 2: 5-8, Phase 3: 9-12), exercise checklist per day
 - **Food**: Meal logging (name, calories, protein), daily totals with progress bars, meal list with delete
 - **Water**: Circular progress ring, quick-add buttons (+8oz, +16oz, +32oz), reset button
@@ -27,6 +27,7 @@ A fitness tracking web app called **Powerhouse** built as a single `index.html` 
 - `ph_workout_YYYY-MM-DD` — exercise completion data per date
 - `ph_meals_YYYY-MM-DD` — array of meal objects per date
 - `ph_water_YYYY-MM-DD` — water intake in oz per date
+- `ph_morning_YYYY-MM-DD` — morning routine exercise completion per date
 
 ## Next Steps (Planned)
 - **Convert to PWA** (Progressive Web App) so it can be installed on phone for free

@@ -193,6 +193,17 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 
 <script>
 // ── DATA ──────────────────────────────────────────────
+const MORNING_ROUTINE = {
+  name:"20-Min Morning Wake-Up", exercises:[
+    {name:"Jump Rope Warm-Up",sets:"3 min"},
+    {name:"Pull-Ups",sets:"3×8"},
+    {name:"Push-Ups",sets:"3×15"},
+    {name:"Ab Roller",sets:"3×10"},
+    {name:"Jump Rope Intervals",sets:"3×2 min"},
+    {name:"Dead Hang (Pull-Up Bar)",sets:"2×30s"}
+  ]
+};
+
 const PROGRAMS = {
   3: [
     { name:"Phase 1", weeks:"Weeks 1–4", color:"var(--red)", days:[
@@ -337,18 +348,20 @@ function loadMeals(date){ try{return JSON.parse(localStorage.getItem('ph_meals_'
 function saveMeals(date,m){ localStorage.setItem('ph_meals_'+date,JSON.stringify(m)) }
 function loadWater(date){ return parseInt(localStorage.getItem('ph_water_'+date))||0 }
 function saveWater(date,v){ localStorage.setItem('ph_water_'+date,v.toString()) }
+function loadMorning(date){ try{return JSON.parse(localStorage.getItem('ph_morning_'+date))||{}}catch(e){return{}} }
+function saveMorning(date,d){ localStorage.setItem('ph_morning_'+date,JSON.stringify(d)) }
 
 function calcStreak(){
   let streak=0; const d=new Date();
   // Check today first
   const t=today();
-  const hasToday=loadMeals(t).length>0||loadWater(t)>0||Object.keys(loadWorkout(t)).length>0;
+  const hasToday=loadMeals(t).length>0||loadWater(t)>0||Object.keys(loadWorkout(t)).length>0||Object.keys(loadMorning(t)).length>0;
   if(hasToday) streak=1;
   // Go backwards
   for(let i=1;i<365;i++){
     d.setDate(d.getDate()-1);
     const ds=d.toISOString().slice(0,10);
-    const has=loadMeals(ds).length>0||loadWater(ds)>0||Object.keys(loadWorkout(ds)).length>0;
+    const has=loadMeals(ds).length>0||loadWater(ds)>0||Object.keys(loadWorkout(ds)).length>0||Object.keys(loadMorning(ds)).length>0;
     if(has) streak++; else break;
   }
   return streak;
@@ -411,6 +424,8 @@ function renderHome(){
       </div>
       <span class="phase-badge" style="background:${phase.color};color:#000">${phase.name} · Week ${s.currentWeek}</span>
     </div>
+
+    ${renderMorningCard()}
 
     <div class="summary-row">
       <div class="summary-item">
@@ -596,7 +611,38 @@ function renderWater(){
   `;
 }
 
+function renderMorningCard(){
+  const m=loadMorning(today());
+  const total=MORNING_ROUTINE.exercises.length;
+  const done=Object.values(m).filter(Boolean).length;
+  const allDone=done===total;
+
+  let exHtml=MORNING_ROUTINE.exercises.map((ex,i)=>{
+    const checked=!!m[i];
+    return `<div class="ex-item">
+      <div class="ex-check ${checked?'done':''}" onclick="toggleMorning(${i})"></div>
+      <span class="ex-name ${checked?'done':''}">${ex.name}</span>
+      <span class="ex-sets">${ex.sets}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">Morning Routine</div>
+      <span style="font-size:11px;color:${allDone?'var(--green)':'var(--text2)'}">${allDone?'✓ Complete':done+'/'+total}</span>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">${MORNING_ROUTINE.name}</div>
+    ${exHtml}
+  </div>`;
+}
+
 // ── ACTIONS ───────────────────────────────────────────
+function toggleMorning(i){
+  const d=today(), m=loadMorning(d);
+  m[i]=!m[i];
+  saveMorning(d,m); renderHome();
+}
+
 function selectDay(i){ selectedDay=i; renderWorkout() }
 
 function setSplit(n){
