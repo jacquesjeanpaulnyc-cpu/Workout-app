@@ -193,6 +193,20 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 .nova-2{background:rgba(39,174,96,.1);color:var(--green)}
 .nova-3{background:rgba(230,126,34,.15);color:var(--orange)}
 .nova-4{background:rgba(231,76,60,.15);color:var(--red)}
+
+/* Consistency heatmap */
+.consist-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:10px}
+.consist-dot{width:100%;aspect-ratio:1;border-radius:4px;background:var(--border)}
+.consist-dot.hit{background:var(--accent,var(--green))}
+.consist-dot.today{outline:2px solid var(--text2);outline-offset:1px}
+.consist-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.consist-row:last-child{border-bottom:none}
+.consist-pct{font-size:20px;font-weight:700;min-width:52px;text-align:right}
+.consist-info{flex:1}
+.consist-label{font-size:12px;font-weight:600}
+.consist-sub{font-size:10px;color:var(--text2);margin-top:2px}
+.consist-bar{height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden}
+.consist-bar-fill{height:100%;border-radius:2px;transition:width .5s ease}
 </style>
 </head>
 <body>
@@ -407,6 +421,8 @@ function loadMorning(date){ try{return JSON.parse(localStorage.getItem('ph_morni
 function saveMorning(date,d){ localStorage.setItem('ph_morning_'+date,JSON.stringify(d)) }
 function loadFasting(){ try{return JSON.parse(localStorage.getItem('ph_fasting'))||{}}catch(e){return{}} }
 function saveFasting(d){ localStorage.setItem('ph_fasting',JSON.stringify(d)) }
+function loadFastLog(){ try{return JSON.parse(localStorage.getItem('ph_fast_log'))||[]}catch(e){return[]} }
+function saveFastLog(d){ localStorage.setItem('ph_fast_log',JSON.stringify(d)) }
 function loadDaily(date){ try{return JSON.parse(localStorage.getItem('ph_daily_'+date))||{}}catch(e){return{}} }
 function saveDaily(date,d){ localStorage.setItem('ph_daily_'+date,JSON.stringify(d)) }
 
@@ -422,6 +438,55 @@ function calcStreak(){
     if(has) streak++; else break;
   }
   return streak;
+}
+
+// ── CONSISTENCY TRACKER ──────────────────────────────
+function calcConsistency(days){
+  // Look back `days` days and check each category
+  const dates=[];
+  const d=new Date();
+  for(let i=0;i<days;i++){
+    dates.push(new Date(d).toISOString().slice(0,10));
+    d.setDate(d.getDate()-1);
+  }
+  dates.reverse();
+
+  const fastLog=loadFastLog();
+  const s=settings;
+
+  const results={
+    workout:{hits:0,dates:[]},
+    morning:{hits:0,dates:[]},
+    discipline:{hits:0,dates:[]},
+    fasting:{hits:0,dates:[]},
+    water:{hits:0,dates:[]}
+  };
+
+  dates.forEach(dt=>{
+    // Workout: at least 1 exercise done
+    const wo=loadWorkout(dt);
+    let woDone=false;
+    Object.values(wo).forEach(day=>{Object.values(day).forEach(v=>{if(v)woDone=true})});
+    if(woDone){results.workout.hits++;results.workout.dates.push(dt)}
+
+    // Morning routine: all 4 exercises done
+    const m=loadMorning(dt);
+    const mDone=Object.values(m).filter(Boolean).length>=MORNING_ROUTINE.exercises.length;
+    if(mDone){results.morning.hits++;results.morning.dates.push(dt)}
+
+    // Daily discipline: reading done
+    const daily=loadDaily(dt);
+    if(daily.reading){results.discipline.hits++;results.discipline.dates.push(dt)}
+
+    // Fasting: completed fast logged for this date
+    if(fastLog.includes(dt)){results.fasting.hits++;results.fasting.dates.push(dt)}
+
+    // Water: hit target
+    const w=loadWater(dt);
+    if(w>=s.waterTarget){results.water.hits++;results.water.dates.push(dt)}
+  });
+
+  return {dates,results,total:days};
 }
 
 // ── FASTING HELPERS ──────────────────────────────────
@@ -446,6 +511,20 @@ function startFast(type){
 }
 
 function endFast(){
+  const fs=getFastingState();
+  if(fs.active&&fs.complete){
+    // Log completed fast
+    const log=loadFastLog();
+    const d=today();
+    if(!log.includes(d)) log.push(d);
+    saveFastLog(log);
+  }
+  saveFasting({active:false});
+  renderFood();
+}
+
+function resetFast(){
+  if(!confirm('Reset current fasting session?')) return;
   saveFasting({active:false});
   renderFood();
 }
@@ -525,6 +604,8 @@ function renderHome(){
         <div class="summary-label">Water</div>
       </div>
     </div>
+
+    ${renderConsistencyCard()}
 
     <div class="card">
       <div class="card-title">Nutrition</div>
@@ -606,6 +687,60 @@ function renderDailyCard(){
       </div>
       ${hasPhoto?`<button class="meal-del" onclick="deletePhoto()" title="Remove photo">×</button>`:''}
     </div>
+  </div>`;
+}
+
+function renderConsistencyCard(){
+  const c=calcConsistency(28); // Last 4 weeks
+  const t=today();
+  const p=getPhase(settings.currentWeek);
+  const phaseColor=PROGRAMS[settings.split][p].color;
+
+  const categories=[
+    {key:'workout',label:'Workouts',color:phaseColor,icon:'💪'},
+    {key:'morning',label:'Morning Routine',color:'var(--green)',icon:'☀'},
+    {key:'discipline',label:'Daily Discipline',color:'var(--purple)',icon:'📖'},
+    {key:'fasting',label:'Fasting',color:'var(--orange)',icon:'⏱'},
+    {key:'water',label:'Hydration',color:'var(--blue)',icon:'💧'}
+  ];
+
+  let rowsHtml=categories.map(cat=>{
+    const r=c.results[cat.key];
+    const pct=c.total>0?Math.round(r.hits/c.total*100):0;
+    const pctColor=pct>=80?'var(--green)':pct>=50?'var(--orange)':'var(--red)';
+    return `<div class="consist-row">
+      <div class="consist-pct" style="color:${pctColor}">${pct}%</div>
+      <div class="consist-info">
+        <div class="consist-label">${cat.icon} ${cat.label}</div>
+        <div class="consist-sub">${r.hits} of ${c.total} days</div>
+        <div class="consist-bar"><div class="consist-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Build heatmap for the best category context - show workout heatmap
+  const heatDots=c.dates.map(dt=>{
+    // A day is "hit" if any category was done
+    const anyHit=Object.values(c.results).some(r=>r.dates.includes(dt));
+    return `<div class="consist-dot${anyHit?' hit':''}${dt===t?' today':''}" title="${dt}"></div>`;
+  }).join('');
+
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="card-title" style="margin-bottom:0">Consistency — Last 28 Days</div>
+    </div>
+    <div class="consist-grid">${heatDots}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px">
+      <span style="font-size:9px;color:var(--text3)">4 weeks ago</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <div style="width:10px;height:10px;border-radius:3px;background:var(--border)"></div>
+        <span style="font-size:9px;color:var(--text3)">Miss</span>
+        <div style="width:10px;height:10px;border-radius:3px;background:var(--accent,var(--green));margin-left:6px"></div>
+        <span style="font-size:9px;color:var(--text3)">Active</span>
+      </div>
+      <span style="font-size:9px;color:var(--text3)">Today</span>
+    </div>
+    <div style="margin-top:12px">${rowsHtml}</div>
   </div>`;
 }
 
@@ -710,8 +845,14 @@ function renderFood(){
           <div style="font-size:11px;color:var(--text3);margin-bottom:12px">
             Started: ${new Date(fs.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
           </div>
-          <button class="btn btn-sm ${fs.complete?'btn-accent':'btn-ghost'}" style="${!fs.complete?'color:var(--red)':''}" onclick="endFast()">${fs.complete?'End Session':'Break Fast'}</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm ${fs.complete?'btn-accent':'btn-ghost'}" style="flex:1;${!fs.complete?'color:var(--red)':''}" onclick="endFast()">${fs.complete?'End Session':'Break Fast'}</button>
+            <button class="btn btn-sm btn-ghost" style="color:var(--text3)" onclick="resetFast()" title="Reset">↺</button>
+          </div>
         </div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <span style="font-size:11px;color:var(--text2)">Fasts completed: <strong style="color:var(--text)">${loadFastLog().length}</strong></span>
       </div>
     </div>`;
 
@@ -728,6 +869,9 @@ function renderFood(){
         <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--red);border:1px solid var(--red);background:transparent" onclick="startFast('24')">24hr Fast</button>
       </div>
       ${dayOfWeek===1?'<div style="font-size:11px;color:var(--orange);margin-top:10px;text-align:center">Reminder: Weekly 24hr fast day</div>':''}
+      <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <span style="font-size:11px;color:var(--text2)">Fasts completed: <strong style="color:var(--text)">${loadFastLog().length}</strong></span>
+      </div>
     </div>`;
   }
 
