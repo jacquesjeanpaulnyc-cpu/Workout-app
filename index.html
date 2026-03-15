@@ -162,6 +162,37 @@ nav button.active .indicator{background:var(--accent,var(--text))}
 /* Hide all tabs by default */
 .tab{display:none}
 .tab.active{display:block}
+
+/* Scanner overlay */
+.scanner-overlay{position:fixed;inset:0;background:#000;z-index:200;display:flex;flex-direction:column;align-items:center}
+.scanner-header{width:100%;max-width:480px;padding:16px;display:flex;justify-content:space-between;align-items:center;z-index:1}
+.scanner-header span{font-size:13px;font-weight:600}
+.scanner-video{width:100%;max-width:480px;flex:1;object-fit:cover;background:#000}
+.scanner-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:240px;height:140px;border:2px solid rgba(255,255,255,.4);border-radius:12px;pointer-events:none}
+.scanner-guide::before{content:'';position:absolute;inset:-2px;border-radius:12px;
+  border:2px solid var(--accent,var(--green));clip-path:polygon(0 0,30% 0,30% 2px,2px 2px,2px 30%,0 30%,0 0,70% 0,100% 0,100% 30%,calc(100% - 2px) 30%,calc(100% - 2px) 2px,70% 2px,70% 0,100% 100%,70% 100%,70% calc(100% - 2px),calc(100% - 2px) calc(100% - 2px),calc(100% - 2px) 70%,100% 70%,100% 100%,0 100%,0 70%,2px 70%,2px calc(100% - 2px),30% calc(100% - 2px),30% 100%,0 100%)}
+.scanner-status{width:100%;max-width:480px;padding:16px;text-align:center;font-size:12px;color:var(--text2)}
+.scanner-manual{width:100%;max-width:480px;padding:0 16px 20px;display:flex;gap:8px}
+.scanner-manual input{flex:1}
+
+/* Product result card */
+.product-result{width:100%;max-width:480px;padding:16px;overflow-y:auto;flex:1}
+.nutri-badge{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
+  border-radius:50%;font-weight:700;font-size:14px;color:#fff;text-transform:uppercase}
+.nutri-a{background:#038141}.nutri-b{background:#85BB2F}.nutri-c{background:#FECB02;color:#000}
+.nutri-d{background:#EE8100}.nutri-e{background:#E63E11}
+.ingredient-tag{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;
+  font-weight:600;margin:3px 4px 3px 0}
+.tag-good{background:rgba(39,174,96,.15);color:var(--green)}
+.tag-bad{background:rgba(231,76,60,.15);color:var(--red)}
+.tag-warn{background:rgba(230,126,34,.15);color:var(--orange)}
+.tag-neutral{background:var(--border);color:var(--text2)}
+.nova-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600}
+.nova-1{background:rgba(39,174,96,.15);color:var(--green)}
+.nova-2{background:rgba(39,174,96,.1);color:var(--green)}
+.nova-3{background:rgba(230,126,34,.15);color:var(--orange)}
+.nova-4{background:rgba(231,76,60,.15);color:var(--red)}
 </style>
 </head>
 <body>
@@ -205,6 +236,9 @@ nav button.active .indicator{background:var(--accent,var(--text))}
     </button>
   </nav>
 </div>
+
+<!-- Scanner overlay (hidden) -->
+<div class="scanner-overlay" id="scanner-overlay" style="display:none"></div>
 
 <!-- Settings overlay (hidden) -->
 <div class="overlay" id="settings-overlay" style="display:none"></div>
@@ -711,6 +745,21 @@ function renderFood(){
     ${fastHtml}
 
     <div class="card">
+      <div class="card-title">Barcode Scanner</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Scan a product to auto-fill nutrition or check ingredients</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--green);border:1px solid var(--green);background:transparent" onclick="openScanner('nutrition')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7v0M7 12v0M7 17v0M12 7v0M12 12v0M12 17v0M17 7v0M17 12v0M17 17v0"/></svg>
+          Scan Calories
+        </button>
+        <button class="btn btn-sm btn-ghost" style="flex:1;color:var(--orange);border:1px solid var(--orange);background:transparent" onclick="openScanner('ingredients')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          Scan Ingredients
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Log Meal</div>
       <div class="form-group">
         <label>Meal Name</label>
@@ -901,6 +950,352 @@ function resetDay(){
   localStorage.removeItem('ph_fasting');
   render();
 }
+
+// ── BARCODE SCANNER ──────────────────────────────────
+let scannerStream=null;
+let scannerMode='nutrition'; // 'nutrition' or 'ingredients'
+let scannerDetecting=false;
+
+function openScanner(mode){
+  scannerMode=mode;
+  const el=document.getElementById('scanner-overlay');
+  el.style.display='flex';
+
+  const hasBarcodeDetector='BarcodeDetector' in window;
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>${mode==='nutrition'?'Scan for Calories':'Scan Ingredients'}</span>
+      <span></span>
+    </div>
+    ${hasBarcodeDetector?`
+      <div style="position:relative;width:100%;max-width:480px;flex:1;display:flex;align-items:center;justify-content:center">
+        <video id="scanner-video" class="scanner-video" autoplay playsinline></video>
+        <div class="scanner-guide"></div>
+      </div>
+      <div class="scanner-status" id="scanner-status">Accessing camera...</div>
+    `:`
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+        <div class="card" style="text-align:center;max-width:320px">
+          <div style="font-size:36px;margin-bottom:12px">📷</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Camera scanning not supported in this browser</div>
+          <div style="font-size:11px;color:var(--text3)">Enter barcode manually below</div>
+        </div>
+      </div>
+    `}
+    <div class="scanner-manual">
+      <input class="form-input" id="manual-barcode" placeholder="Enter barcode number" inputmode="numeric"/>
+      <button class="btn btn-sm btn-accent" onclick="lookupManualBarcode()">Look Up</button>
+    </div>
+  `;
+
+  if(hasBarcodeDetector) startCamera();
+}
+
+async function startCamera(){
+  try{
+    scannerStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}
+    });
+    const video=document.getElementById('scanner-video');
+    if(!video){stopCamera();return}
+    video.srcObject=scannerStream;
+    await video.play();
+    document.getElementById('scanner-status').textContent='Point at a barcode';
+    startDetection(video);
+  }catch(e){
+    const status=document.getElementById('scanner-status');
+    if(status) status.textContent='Camera access denied. Use manual entry below.';
+  }
+}
+
+async function startDetection(video){
+  const detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
+  scannerDetecting=true;
+
+  const detect=async()=>{
+    if(!scannerDetecting||!video.srcObject) return;
+    try{
+      const barcodes=await detector.detect(video);
+      if(barcodes.length>0){
+        scannerDetecting=false;
+        const code=barcodes[0].rawValue;
+        document.getElementById('scanner-status').textContent='Found: '+code;
+        await lookupBarcode(code);
+        return;
+      }
+    }catch(e){}
+    if(scannerDetecting) requestAnimationFrame(detect);
+  };
+  requestAnimationFrame(detect);
+}
+
+function stopCamera(){
+  scannerDetecting=false;
+  if(scannerStream){
+    scannerStream.getTracks().forEach(t=>t.stop());
+    scannerStream=null;
+  }
+}
+
+function closeScanner(){
+  stopCamera();
+  document.getElementById('scanner-overlay').style.display='none';
+}
+
+function lookupManualBarcode(){
+  const code=document.getElementById('manual-barcode').value.trim();
+  if(!code) return;
+  lookupBarcode(code);
+}
+
+async function lookupBarcode(code){
+  const el=document.getElementById('scanner-overlay');
+  stopCamera();
+
+  // Show loading
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Looking up product...</span>
+      <span></span>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center">
+      <div style="text-align:center">
+        <div style="font-size:14px;margin-bottom:8px">Searching OpenFoodFacts</div>
+        <div style="font-size:12px;color:var(--text2)">${code}</div>
+      </div>
+    </div>
+  `;
+
+  try{
+    const resp=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json');
+    const data=await resp.json();
+
+    if(data.status!==1||!data.product){
+      showScannerError(code,'Product not found in OpenFoodFacts database');
+      return;
+    }
+
+    const product=data.product;
+    if(scannerMode==='nutrition') showNutritionResult(product,code);
+    else showIngredientResult(product,code);
+
+  }catch(e){
+    showScannerError(code,'Network error. Check your connection and try again.');
+  }
+}
+
+function showScannerError(code,msg){
+  const el=document.getElementById('scanner-overlay');
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Not Found</span>
+      <span></span>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+      <div class="card" style="text-align:center;max-width:320px">
+        <div style="font-size:28px;margin-bottom:12px">?</div>
+        <div style="font-size:13px;margin-bottom:8px">${msg}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:16px">Barcode: ${code}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-ghost" style="flex:1" onclick="openScanner(scannerMode)">Try Again</button>
+          <button class="btn btn-sm btn-accent" style="flex:1" onclick="closeScanner()">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showNutritionResult(product,code){
+  const el=document.getElementById('scanner-overlay');
+  const name=product.product_name||product.product_name_en||'Unknown Product';
+  const brand=product.brands||'';
+  const n=product.nutriments||{};
+  const cal=Math.round(n['energy-kcal_100g']||n['energy-kcal']||0);
+  const pro=Math.round((n.proteins_100g||n.proteins||0)*10)/10;
+  const fat=Math.round((n.fat_100g||n.fat||0)*10)/10;
+  const carbs=Math.round((n.carbohydrates_100g||n.carbohydrates||0)*10)/10;
+  const fiber=Math.round((n.fiber_100g||n.fiber||0)*10)/10;
+  const sugar=Math.round((n.sugars_100g||n.sugars||0)*10)/10;
+  const serving=product.serving_size||'per 100g';
+  const imgUrl=product.image_small_url||product.image_url||'';
+
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Nutrition Info</span>
+      <span></span>
+    </div>
+    <div class="product-result">
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:start;margin-bottom:14px">
+          ${imgUrl?`<img src="${imgUrl}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;background:var(--border)"/>`:''}
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">${escHtml(name)}</div>
+            ${brand?`<div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(brand)}</div>`:''}
+            <div style="font-size:10px;color:var(--text3);margin-top:2px">${escHtml(serving)}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:14px;text-align:center">
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px">
+            <div style="font-size:18px;font-weight:700">${cal}</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">KCAL</div>
+          </div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px">
+            <div style="font-size:18px;font-weight:700;color:var(--green)">${pro}g</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">PROTEIN</div>
+          </div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px">
+            <div style="font-size:18px;font-weight:700;color:var(--orange)">${carbs}g</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">CARBS</div>
+          </div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px">
+            <div style="font-size:18px;font-weight:700;color:var(--red)">${fat}g</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">FAT</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:6px;font-size:11px;color:var(--text2)">
+          <span>Fiber: ${fiber}g</span>
+          <span>Sugar: ${sugar}g</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-accent" style="flex:1" onclick="addScannedMeal('${escAttr(name)}',${cal},${Math.round(pro)})">Add to Meals</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="closeScanner()">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+function showIngredientResult(product,code){
+  const el=document.getElementById('scanner-overlay');
+  const name=product.product_name||product.product_name_en||'Unknown Product';
+  const brand=product.brands||'';
+  const imgUrl=product.image_small_url||product.image_url||'';
+
+  // Nutri-Score
+  const nutriScore=(product.nutriscore_grade||product.nutrition_grades||'').toLowerCase();
+
+  // NOVA group (1=unprocessed, 4=ultra-processed)
+  const nova=product.nova_group||0;
+  const novaLabels={1:'Unprocessed',2:'Processed culinary',3:'Processed',4:'Ultra-processed'};
+
+  // Ingredients text
+  const ingredientsText=product.ingredients_text||product.ingredients_text_en||'';
+
+  // Additives
+  const additives=(product.additives_tags||[]).map(a=>a.replace('en:','').replace(/-/g,' '));
+
+  // Ingredient analysis tags
+  const analysisTags=product.ingredients_analysis_tags||[];
+  const palmOilFree=analysisTags.includes('en:palm-oil-free');
+  const hasPalmOil=analysisTags.includes('en:palm-oil');
+  const vegan=analysisTags.includes('en:vegan');
+  const vegetarian=analysisTags.includes('en:vegetarian');
+
+  // Nutrient levels
+  const levels=product.nutrient_levels||{};
+
+  // Build good/bad tags
+  let tags=[];
+  if(palmOilFree) tags.push({text:'No Palm Oil',type:'good'});
+  if(hasPalmOil) tags.push({text:'Contains Palm Oil',type:'bad'});
+  if(vegan) tags.push({text:'Vegan',type:'good'});
+  else if(vegetarian) tags.push({text:'Vegetarian',type:'good'});
+  if(levels.fat==='low') tags.push({text:'Low Fat',type:'good'});
+  if(levels.fat==='high') tags.push({text:'High Fat',type:'bad'});
+  if(levels['saturated-fat']==='low') tags.push({text:'Low Sat. Fat',type:'good'});
+  if(levels['saturated-fat']==='high') tags.push({text:'High Sat. Fat',type:'bad'});
+  if(levels.sugars==='low') tags.push({text:'Low Sugar',type:'good'});
+  if(levels.sugars==='high') tags.push({text:'High Sugar',type:'bad'});
+  if(levels.salt==='low') tags.push({text:'Low Salt',type:'good'});
+  if(levels.salt==='high') tags.push({text:'High Salt',type:'bad'});
+  if(levels.fat==='moderate') tags.push({text:'Moderate Fat',type:'warn'});
+  if(levels.sugars==='moderate') tags.push({text:'Moderate Sugar',type:'warn'});
+  if(levels.salt==='moderate') tags.push({text:'Moderate Salt',type:'warn'});
+
+  const tagsHtml=tags.map(t=>`<span class="ingredient-tag tag-${t.type}">${t.text}</span>`).join('');
+
+  const additivesHtml=additives.length
+    ?additives.map(a=>`<span class="ingredient-tag tag-bad">${escHtml(a)}</span>`).join('')
+    :'<span style="font-size:12px;color:var(--green)">No additives detected</span>';
+
+  // Verdict
+  let verdict='', verdictColor='var(--text2)';
+  if(nutriScore==='a'||nutriScore==='b'){verdict='Good Choice';verdictColor='var(--green)'}
+  else if(nutriScore==='c'){verdict='Moderate';verdictColor='var(--orange)'}
+  else if(nutriScore==='d'||nutriScore==='e'){verdict='Poor Choice';verdictColor='var(--red)'}
+  if(nova>=4){verdict='Ultra-Processed — Avoid';verdictColor='var(--red)'}
+
+  el.innerHTML=`
+    <div class="scanner-header">
+      <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
+      <span>Ingredient Analysis</span>
+      <span></span>
+    </div>
+    <div class="product-result">
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:start;margin-bottom:14px">
+          ${imgUrl?`<img src="${imgUrl}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;background:var(--border)"/>`:''}
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600">${escHtml(name)}</div>
+            ${brand?`<div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(brand)}</div>`:''}
+          </div>
+        </div>
+
+        ${verdict?`<div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;margin-bottom:14px">
+          <div style="font-size:16px;font-weight:700;color:${verdictColor}">${verdict}</div>
+        </div>`:''}
+
+        <div style="display:flex;gap:12px;margin-bottom:14px">
+          ${nutriScore?`<div style="text-align:center">
+            <div style="font-size:9px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Nutri-Score</div>
+            <div class="nutri-badge nutri-${nutriScore}">${nutriScore}</div>
+          </div>`:''}
+          ${nova?`<div style="text-align:center">
+            <div style="font-size:9px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">NOVA Group</div>
+            <div class="nova-badge nova-${nova}">${nova} — ${novaLabels[nova]||'Unknown'}</div>
+          </div>`:''}
+        </div>
+      </div>
+
+      ${tags.length?`<div class="card">
+        <div class="card-title">Quality Indicators</div>
+        <div>${tagsHtml}</div>
+      </div>`:''}
+
+      <div class="card">
+        <div class="card-title">Additives (${additives.length})</div>
+        <div>${additivesHtml}</div>
+      </div>
+
+      ${ingredientsText?`<div class="card">
+        <div class="card-title">Ingredients</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.6">${escHtml(ingredientsText)}</div>
+      </div>`:''}
+
+      <div style="text-align:center;margin-top:4px">
+        <button class="btn btn-ghost" onclick="closeScanner()">Close</button>
+      </div>
+    </div>
+  `;
+}
+
+function addScannedMeal(name,cal,pro){
+  const meals=loadMeals(today());
+  meals.push({id:Date.now(),name,calories:cal,protein:pro});
+  saveMeals(today(),meals);
+  closeScanner();
+  renderFood();
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function escAttr(s){return s.replace(/'/g,"\\'").replace(/\\/g,"\\\\")}
 
 // ── SETTINGS ──────────────────────────────────────────
 function toggleSettings(){
