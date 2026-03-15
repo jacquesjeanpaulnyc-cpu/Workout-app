@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0D0D0D"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>Powerhouse — 12-Week Training</title>
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -1096,94 +1097,81 @@ function resetDay(){
 }
 
 // ── BARCODE SCANNER ──────────────────────────────────
-let scannerStream=null;
 let scannerMode='nutrition'; // 'nutrition' or 'ingredients'
-let scannerDetecting=false;
 
 function openScanner(mode){
   scannerMode=mode;
   const el=document.getElementById('scanner-overlay');
   el.style.display='flex';
 
-  const hasBarcodeDetector='BarcodeDetector' in window;
   el.innerHTML=`
     <div class="scanner-header">
       <button class="overlay-close" onclick="closeScanner()" style="font-size:20px">×</button>
       <span>${mode==='nutrition'?'Scan for Calories':'Scan Ingredients'}</span>
       <span></span>
     </div>
-    ${hasBarcodeDetector?`
-      <div style="position:relative;width:100%;max-width:480px;flex:1;display:flex;align-items:center;justify-content:center">
-        <video id="scanner-video" class="scanner-video" autoplay playsinline></video>
-        <div class="scanner-guide"></div>
-      </div>
-      <div class="scanner-status" id="scanner-status">Accessing camera...</div>
-    `:`
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
-        <div class="card" style="text-align:center;max-width:320px">
-          <div style="font-size:36px;margin-bottom:12px">📷</div>
-          <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Camera scanning not supported in this browser</div>
-          <div style="font-size:11px;color:var(--text3)">Enter barcode manually below</div>
-        </div>
-      </div>
-    `}
+    <div style="position:relative;width:100%;max-width:480px;flex:1;overflow:hidden" id="scanner-viewport"></div>
+    <div class="scanner-status" id="scanner-status">Accessing camera...</div>
     <div class="scanner-manual">
       <input class="form-input" id="manual-barcode" placeholder="Enter barcode number" inputmode="numeric"/>
       <button class="btn btn-sm btn-accent" onclick="lookupManualBarcode()">Look Up</button>
     </div>
   `;
 
-  if(hasBarcodeDetector) startCamera();
+  startQuagga();
 }
 
-async function startCamera(){
-  try{
-    scannerStream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}
-    });
-    const video=document.getElementById('scanner-video');
-    if(!video){stopCamera();return}
-    video.srcObject=scannerStream;
-    await video.play();
-    document.getElementById('scanner-status').textContent='Point at a barcode';
-    startDetection(video);
-  }catch(e){
-    const status=document.getElementById('scanner-status');
-    if(status) status.textContent='Camera access denied. Use manual entry below.';
+function startQuagga(){
+  if(typeof Quagga==='undefined'){
+    document.getElementById('scanner-status').textContent='Scanner loading failed. Use manual entry.';
+    return;
   }
-}
-
-async function startDetection(video){
-  const detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
-  scannerDetecting=true;
-
-  const detect=async()=>{
-    if(!scannerDetecting||!video.srcObject) return;
-    try{
-      const barcodes=await detector.detect(video);
-      if(barcodes.length>0){
-        scannerDetecting=false;
-        const code=barcodes[0].rawValue;
-        document.getElementById('scanner-status').textContent='Found: '+code;
-        await lookupBarcode(code);
-        return;
+  Quagga.init({
+    inputStream:{
+      name:'Live',
+      type:'LiveStream',
+      target:document.getElementById('scanner-viewport'),
+      constraints:{
+        facingMode:'environment',
+        width:{ideal:1280},
+        height:{ideal:720}
       }
-    }catch(e){}
-    if(scannerDetecting) requestAnimationFrame(detect);
-  };
-  requestAnimationFrame(detect);
-}
+    },
+    decoder:{
+      readers:['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader']
+    },
+    locate:true,
+    frequency:10
+  }, function(err){
+    if(err){
+      document.getElementById('scanner-status').textContent='Camera access denied. Use manual entry below.';
+      return;
+    }
+    Quagga.start();
+    document.getElementById('scanner-status').textContent='Point at a barcode';
 
-function stopCamera(){
-  scannerDetecting=false;
-  if(scannerStream){
-    scannerStream.getTracks().forEach(t=>t.stop());
-    scannerStream=null;
-  }
+    // Style the video to fill the viewport
+    const vp=document.getElementById('scanner-viewport');
+    if(vp){
+      const v=vp.querySelector('video');
+      if(v){v.style.width='100%';v.style.height='100%';v.style.objectFit='cover'}
+      const c=vp.querySelector('canvas');
+      if(c){c.style.display='none'}
+    }
+  });
+
+  Quagga.onDetected(function(result){
+    if(result&&result.codeResult&&result.codeResult.code){
+      const code=result.codeResult.code;
+      Quagga.stop();
+      document.getElementById('scanner-status').textContent='Found: '+code;
+      lookupBarcode(code);
+    }
+  });
 }
 
 function closeScanner(){
-  stopCamera();
+  try{Quagga.stop()}catch(e){}
   document.getElementById('scanner-overlay').style.display='none';
 }
 
@@ -1195,7 +1183,7 @@ function lookupManualBarcode(){
 
 async function lookupBarcode(code){
   const el=document.getElementById('scanner-overlay');
-  stopCamera();
+  try{Quagga.stop()}catch(e){}
 
   // Show loading
   el.innerHTML=`
