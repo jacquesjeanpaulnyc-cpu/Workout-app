@@ -790,6 +790,10 @@ function renderWorkout(){
       <div style="font-size:14px;font-weight:600;margin-bottom:4px">${day.name}</div>
       <div style="font-size:11px;color:var(--text2);margin-bottom:14px">${doneCount}/${day.exercises.length} complete</div>
       ${exHtml}
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-accent" style="flex:1" onclick="completeDay()">Day Completed ✓</button>
+        <button class="btn btn-sm" style="background:var(--border);color:var(--red);align-self:center" onclick="resetWorkoutDay()">Reset</button>
+      </div>
     </div>
   `;
 }
@@ -1050,6 +1054,36 @@ function deletePhoto(){
 }
 
 function selectDay(i){ selectedDay=i; renderWorkout() }
+
+function completeDay(){
+  const s=settings;
+  const p=getPhase(s.currentWeek);
+  const phase=PROGRAMS[s.split][p];
+  // Mark all exercises as done for current day
+  const d=today(), wo=loadWorkout(d);
+  const dayKey='day_'+selectedDay;
+  if(!wo[dayKey]) wo[dayKey]={};
+  phase.days[selectedDay].exercises.forEach((_,i)=>{ wo[dayKey][i]=true; });
+  saveWorkout(d,wo);
+  // Advance to next day or next week
+  if(selectedDay<phase.days.length-1){
+    selectedDay++;
+  } else {
+    if(s.currentWeek<12){
+      s.currentWeek++;
+      saveSettings(s);
+      selectedDay=0;
+    }
+  }
+  render();
+}
+
+function resetWorkoutDay(){
+  if(!confirm('Reset all exercises for this workout day?')) return;
+  const d=today(), wo=loadWorkout(d);
+  delete wo['day_'+selectedDay];
+  saveWorkout(d,wo); renderWorkout();
+}
 
 function setSplit(n){
   settings.split=n; saveSettings(settings);
