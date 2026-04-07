@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WaxOS — The AI Operating System for Wax Specialists</title>
+<meta name="description" content="WaxOS fills cancelled slots, kills no-shows, and closes bookings while you sleep. Built for independent wax specialists who refuse to leave money on the table.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #09090b;
+  --bg-secondary: #0f0f12;
+  --bg-card: #131318;
+  --bg-card-hover: #1a1a22;
+  --border: #1e1e2a;
+  --border-hover: #2a2a3a;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #c4a265;
+  --accent-dim: rgba(196, 162, 101, 0.12);
+  --accent-glow: rgba(196, 162, 101, 0.25);
+  --green: #4ade80;
+  --green-dim: rgba(74, 222, 128, 0.1);
+  --red: #f87171;
+  --red-dim: rgba(248, 113, 113, 0.1);
+}
+
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ---- UTILITY ---- */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.text-accent { color: var(--accent); }
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+
+/* ---- NAV ---- */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(9, 9, 11, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 64px;
+}
+.logo {
+  font-size: 1.25rem; font-weight: 700; letter-spacing: -0.03em;
+  color: var(--text-primary); text-decoration: none;
+}
+.logo span { color: var(--accent); }
+.nav-links { display: flex; align-items: center; gap: 32px; }
+.nav-links a {
+  font-size: 0.875rem; color: var(--text-secondary); text-decoration: none;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--text-primary); }
+.nav-cta {
+  padding: 8px 20px; background: var(--accent); color: var(--bg-primary);
+  font-size: 0.875rem; font-weight: 600; border-radius: 8px;
+  text-decoration: none; transition: all 0.2s;
+}
+.nav-cta:hover { background: #d4b275; transform: translateY(-1px); }
+
+/* ---- HERO ---- */
+.hero {
+  padding: 160px 0 120px; text-align: center; position: relative;
+}
+.hero::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 800px; height: 600px;
+  background: radial-gradient(ellipse, var(--accent-dim) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-radius: 100px;
+  background: var(--accent-dim); border: 1px solid rgba(196, 162, 101, 0.2);
+  font-size: 0.8125rem; font-weight: 500; color: var(--accent);
+  margin-bottom: 32px;
+}
+.hero-badge .dot {
+  width: 6px; height: 6px; background: var(--accent); border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 800;
+  letter-spacing: -0.04em; line-height: 1.1;
+  max-width: 900px; margin: 0 auto 24px;
+}
+.hero h1 .highlight {
+  background: linear-gradient(135deg, var(--accent), #e0c88a);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-sub {
+  font-size: 1.125rem; color: var(--text-secondary); max-width: 560px;
+  margin: 0 auto 48px; line-height: 1.7;
+}
+.hero-cta-group { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 32px; background: var(--accent); color: var(--bg-primary);
+  font-size: 1rem; font-weight: 700; border-radius: 12px;
+  text-decoration: none; border: none; cursor: pointer;
+  transition: all 0.25s; position: relative; overflow: hidden;
+}
+.btn-primary::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(255,255,255,0.15));
+  opacity: 0; transition: opacity 0.25s;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px var(--accent-glow); }
+.btn-primary:hover::after { opacity: 1; }
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 32px; background: transparent; color: var(--text-secondary);
+  font-size: 1rem; font-weight: 500; border-radius: 12px;
+  text-decoration: none; border: 1px solid var(--border);
+  transition: all 0.25s;
+}
+.btn-secondary:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+.hero-proof {
+  margin-top: 64px; display: flex; align-items: center; justify-content: center;
+  gap: 40px; flex-wrap: wrap;
+}
+.proof-stat { text-align: center; }
+.proof-stat .number {
+  font-size: 1.5rem; font-weight: 700; color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+}
+.proof-stat .label {
+  font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.08em; margin-top: 4px;
+}
+.proof-divider { width: 1px; height: 40px; background: var(--border); }
+
+/* ---- PROBLEM SECTION ---- */
+.problem { padding: 120px 0; }
+.problem-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+}
+.problem-label {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--red); font-weight: 600; margin-bottom: 16px;
+}
+.problem h2 {
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem); font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 24px;
+}
+.problem p { color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.8; margin-bottom: 16px; }
+.leak-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.leak-item {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 20px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; transition: all 0.25s;
+}
+.leak-item:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+.leak-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--red-dim); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 1.125rem;
+}
+.leak-content h4 { font-size: 0.9375rem; font-weight: 600; margin-bottom: 4px; }
+.leak-content p { font-size: 0.8125rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+/* ---- SYSTEMS SECTION ---- */
+.systems { padding: 120px 0; }
+.section-header { text-align: center; max-width: 640px; margin: 0 auto 72px; }
+.section-label {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--accent); font-weight: 600; margin-bottom: 16px;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.section-header h2 {
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem); font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 16px;
+}
+.section-header p { color: var(--text-secondary); font-size: 1.0625rem; }
+
+.system-card {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+  align-items: center; padding: 80px 0;
+  border-top: 1px solid var(--border);
+}
+.system-card:nth-child(even) { direction: rtl; }
+.system-card:nth-child(even) > * { direction: ltr; }
+.system-number {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+  color: var(--accent); font-weight: 500; margin-bottom: 16px;
+  letter-spacing: 0.05em;
+}
+.system-content h3 {
+  font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;
+  margin-bottom: 16px; line-height: 1.2;
+}
+.system-content p {
+  color: var(--text-secondary); font-size: 1rem; line-height: 1.8;
+  margin-bottom: 24px;
+}
+.system-bullets { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.system-bullets li {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 0.9375rem; color: var(--text-secondary);
+}
+.system-bullets li::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+}
+
+.system-visual {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px; position: relative;
+  overflow: hidden;
+}
+.system-visual::before {
+  content: ''; position: absolute; top: 0; right: 0;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, var(--accent-dim), transparent 70%);
+}
+.visual-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.visual-header h4 { font-size: 0.8125rem; font-weight: 600; }
+.visual-badge {
+  font-size: 0.6875rem; padding: 4px 10px; border-radius: 100px;
+  font-weight: 500; font-family: 'JetBrains Mono', monospace;
+}
+.badge-live { background: var(--green-dim); color: var(--green); }
+.badge-active { background: var(--accent-dim); color: var(--accent); }
+
+/* Visual: Gap Filler */
+.slot-timeline { display: flex; flex-direction: column; gap: 8px; }
+.slot-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 8px; background: rgba(255,255,255,0.03);
+  font-size: 0.8125rem; transition: all 0.3s;
+}
+.slot-time { font-family: 'JetBrains Mono', monospace; color: var(--text-muted); width: 60px; flex-shrink: 0; font-size: 0.75rem; }
+.slot-status { flex: 1; }
+.slot-cancelled { color: var(--red); text-decoration: line-through; opacity: 0.6; }
+.slot-filled { color: var(--green); }
+.slot-arrow { color: var(--accent); font-size: 0.75rem; }
+.slot-booked { opacity: 0.5; color: var(--text-muted); }
+
+/* Visual: No Show */
+.risk-meter { margin-bottom: 20px; }
+.meter-label { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 8px; }
+.meter-track { height: 8px; background: rgba(255,255,255,0.05); border-radius: 100px; overflow: hidden; }
+.meter-fill {
+  height: 100%; border-radius: 100px;
+  background: linear-gradient(90deg, var(--green), var(--accent), var(--red));
+  transition: width 1s ease;
+}
+.risk-actions { display: flex; flex-direction: column; gap: 8px; }
+.risk-action {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 0.8125rem;
+}
+.risk-action .action-icon {
+  width: 28px; height: 28px; border-radius: 6px; display: flex;
+  align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0;
+}
+.action-text { flex: 1; color: var(--text-secondary); }
+.action-result { font-family: 'JetBrains Mono', monospace; font-size: 0.6875rem; }
+
+/* Visual: AI Closer */
+.chat-demo { display: flex; flex-direction: column; gap: 10px; }
+.chat-msg {
+  max-width: 85%; padding: 12px 16px; border-radius: 12px;
+  font-size: 0.8125rem; line-height: 1.5;
+}
+.chat-incoming {
+  background: rgba(255,255,255,0.06); align-self: flex-start;
+  border-bottom-left-radius: 4px; color: var(--text-secondary);
+}
+.chat-ai {
+  background: var(--accent-dim); align-self: flex-end;
+  border-bottom-right-radius: 4px; color: var(--accent);
+  border: 1px solid rgba(196, 162, 101, 0.15);
+}
+.chat-ai-label {
+  font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted); margin-bottom: 4px;
+}
+.chat-result {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; background: var(--green-dim); border-radius: 8px;
+  font-size: 0.8125rem; color: var(--green); margin-top: 4px;
+}
+
+/* Visual: Reactivation */
+.reactivation-timeline { position: relative; padding-left: 20px; }
+.reactivation-timeline::before {
+  content: ''; position: absolute; left: 6px; top: 0; bottom: 0;
+  width: 1px; background: var(--border);
+}
+.reactivation-step {
+  position: relative; padding: 0 0 20px 20px; font-size: 0.8125rem;
+}
+.reactivation-step::before {
+  content: ''; position: absolute; left: -17px; top: 6px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--bg-card); border: 2px solid var(--accent);
+}
+.reactivation-step:last-child { padding-bottom: 0; }
+.step-day { font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-size: 0.6875rem; margin-bottom: 4px; }
+.step-action { color: var(--text-secondary); }
+.step-result { color: var(--green); font-size: 0.75rem; margin-top: 4px; }
+
+/* Visual: Dashboard */
+.dash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.dash-metric {
+  padding: 16px; background: rgba(255,255,255,0.03); border-radius: 10px;
+}
+.dash-metric .dm-label { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.dash-metric .dm-value { font-size: 1.25rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.dm-green { color: var(--green); }
+.dm-accent { color: var(--accent); }
+.dash-bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 80px; padding-top: 12px; }
+.dash-bar {
+  flex: 1; border-radius: 4px 4px 0 0; position: relative;
+  transition: height 0.5s ease;
+}
+.dash-bar-accent { background: var(--accent); }
+.dash-bar-dim { background: rgba(196, 162, 101, 0.25); }
+
+/* ---- SOCIAL PROOF ---- */
+.proof-section { padding: 120px 0; background: var(--bg-secondary); }
+.proof-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.proof-card {
+  padding: 32px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; transition: all 0.25s;
+}
+.proof-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+.proof-stars { color: var(--accent); font-size: 0.875rem; margin-bottom: 16px; letter-spacing: 2px; }
+.proof-quote { font-size: 0.9375rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 20px; }
+.proof-author { display: flex; align-items: center; gap: 12px; }
+.proof-avatar {
+  width: 40px; height: 40px; border-radius: 50%; background: var(--accent-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.875rem; color: var(--accent);
+}
+.proof-name { font-size: 0.875rem; font-weight: 600; }
+.proof-title { font-size: 0.75rem; color: var(--text-muted); }
+
+/* ---- PRICING ---- */
+.pricing { padding: 120px 0; }
+.pricing-card {
+  max-width: 560px; margin: 0 auto; padding: 48px;
+  background: var(--bg-card); border: 1px solid var(--accent);
+  border-radius: 20px; text-align: center;
+  position: relative; overflow: hidden;
+}
+.pricing-card::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 400px; height: 200px;
+  background: radial-gradient(ellipse, var(--accent-dim), transparent 70%);
+}
+.pricing-badge {
+  display: inline-block; padding: 6px 16px; border-radius: 100px;
+  background: var(--accent); color: var(--bg-primary);
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; margin-bottom: 24px; position: relative;
+}
+.pricing-card h3 {
+  font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; position: relative;
+}
+.pricing-card .price {
+  font-size: 3rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 4px; position: relative;
+}
+.pricing-card .price span { font-size: 1.125rem; font-weight: 400; color: var(--text-muted); }
+.pricing-card .price-note {
+  font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 32px; position: relative;
+}
+.pricing-features {
+  list-style: none; text-align: left; display: flex; flex-direction: column;
+  gap: 14px; margin-bottom: 36px; position: relative;
+}
+.pricing-features li {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 0.9375rem; color: var(--text-secondary);
+}
+.pricing-features li .check { color: var(--accent); font-size: 1rem; flex-shrink: 0; }
+.pricing-cta {
+  display: block; width: 100%; padding: 18px; background: var(--accent);
+  color: var(--bg-primary); font-size: 1.0625rem; font-weight: 700;
+  border: none; border-radius: 12px; cursor: pointer; text-decoration: none;
+  transition: all 0.25s; position: relative;
+}
+.pricing-cta:hover { background: #d4b275; transform: translateY(-1px); box-shadow: 0 8px 32px var(--accent-glow); }
+.pricing-guarantee {
+  font-size: 0.75rem; color: var(--text-muted); margin-top: 16px; position: relative;
+}
+
+/* ---- FAQ ---- */
+.faq { padding: 120px 0; }
+.faq-list { max-width: 720px; margin: 0 auto; }
+.faq-item {
+  border-bottom: 1px solid var(--border); padding: 24px 0;
+}
+.faq-question {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none; color: var(--text-primary);
+  font-size: 1rem; font-weight: 600; text-align: left; cursor: pointer;
+  font-family: inherit; padding: 0;
+}
+.faq-icon { font-size: 1.25rem; color: var(--text-muted); transition: transform 0.3s; }
+.faq-answer {
+  max-height: 0; overflow: hidden; transition: max-height 0.4s ease, padding 0.3s;
+}
+.faq-answer-inner {
+  padding-top: 16px; font-size: 0.9375rem; color: var(--text-secondary); line-height: 1.7;
+}
+.faq-item.open .faq-icon { transform: rotate(45deg); }
+.faq-item.open .faq-answer { max-height: 300px; }
+
+/* ---- FINAL CTA ---- */
+.final-cta {
+  padding: 120px 0; text-align: center; position: relative;
+}
+.final-cta::before {
+  content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; height: 400px;
+  background: radial-gradient(ellipse at bottom, var(--accent-dim), transparent 60%);
+  pointer-events: none;
+}
+.final-cta h2 {
+  font-size: clamp(2rem, 4vw, 3rem); font-weight: 800;
+  letter-spacing: -0.03em; margin-bottom: 16px; position: relative;
+}
+.final-cta p {
+  font-size: 1.125rem; color: var(--text-secondary); margin-bottom: 40px;
+  max-width: 520px; margin-left: auto; margin-right: auto; position: relative;
+}
+.final-cta .btn-primary { position: relative; font-size: 1.125rem; padding: 18px 40px; }
+
+/* ---- FOOTER ---- */
+footer {
+  padding: 48px 0; border-top: 1px solid var(--border);
+}
+.footer-inner {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+}
+.footer-logo { font-size: 1rem; font-weight: 700; color: var(--text-muted); }
+.footer-logo span { color: var(--accent); }
+.footer-links { display: flex; gap: 24px; }
+.footer-links a { font-size: 0.8125rem; color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+.footer-links a:hover { color: var(--text-secondary); }
+.footer-copy { font-size: 0.75rem; color: var(--text-muted); }
+
+/* ---- SMS CONSENT ---- */
+.sms-consent { margin-top: 4px; }
+.consent-label {
+  display: flex; align-items: flex-start; gap: 10px;
+  cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
+  line-height: 1.5;
+}
+.consent-label input[type="checkbox"] {
+  margin-top: 3px; flex-shrink: 0; accent-color: var(--accent);
+  width: 16px; height: 16px; cursor: pointer;
+}
+.consent-label a {
+  color: var(--accent); text-decoration: underline;
+}
+.consent-label a:hover { color: #d4b275; }
+
+/* ---- ABOUT LINE ---- */
+.about-line {
+  text-align: center; font-size: 0.8125rem; color: var(--text-muted);
+  max-width: 640px; margin: 0 auto; line-height: 1.6;
+}
+
+/* ---- PILOT DATA SECTION ---- */
+.pilot-section { padding: 120px 0; background: var(--bg-secondary); }
+.pilot-intro {
+  max-width: 640px; margin: 0 auto 48px; text-align: center;
+  font-size: 1rem; color: var(--text-secondary); line-height: 1.7;
+}
+.pilot-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  max-width: 900px; margin: 0 auto;
+}
+.pilot-card {
+  padding: 28px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; text-align: center; transition: all 0.25s;
+}
+.pilot-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+.pilot-number {
+  font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+  color: var(--accent); margin-bottom: 6px;
+}
+.pilot-label {
+  font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.4;
+}
+@media (max-width: 900px) {
+  .pilot-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .pilot-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- RESPONSIVE ---- */
+@media (max-width: 900px) {
+  .problem-grid, .system-card { grid-template-columns: 1fr; gap: 48px; }
+  .system-card:nth-child(even) { direction: ltr; }
+  .proof-grid { grid-template-columns: 1fr; }
+  .nav-links { display: none; }
+  .hero-proof { gap: 24px; }
+  .proof-divider { display: none; }
+  .dash-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .hero { padding: 120px 0 80px; }
+  .hero-cta-group { flex-direction: column; align-items: center; }
+  .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+  .pricing-card { padding: 32px 24px; }
+}
+
+/* ---- ANIMATIONS ---- */
+.fade-up {
+  opacity: 0; transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.fade-up.visible { opacity: 1; transform: translateY(0); }
+
+/* ---- MODAL ---- */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(9,9,11,0.85);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-radius: 20px;
+  padding: 48px 40px 40px;
+  max-width: 480px; width: 100%;
+  position: relative;
+  transform: translateY(16px) scale(0.98);
+  transition: transform 0.25s ease;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+}
+.modal-overlay.open .modal { transform: translateY(0) scale(1); }
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); padding: 8px;
+  border-radius: 8px; line-height: 1;
+  transition: color 0.2s, background 0.2s;
+}
+.modal-close:hover { color: var(--text-primary); background: var(--border); }
+.modal-badge {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6875rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-dim);
+  border: 1px solid rgba(196,162,101,0.25);
+  padding: 4px 12px; border-radius: 100px;
+  margin-bottom: 20px;
+}
+.modal h2 {
+  font-size: 1.625rem; font-weight: 700;
+  line-height: 1.25; margin-bottom: 8px;
+}
+.modal p {
+  font-size: 0.9375rem; color: var(--text-secondary);
+  margin-bottom: 28px; line-height: 1.5;
+}
+.modal-form { display: flex; flex-direction: column; gap: 14px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label {
+  font-size: 0.8125rem; font-weight: 500;
+  color: var(--text-secondary); letter-spacing: 0.01em;
+}
+.form-group input, .form-group select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+  color: var(--text-primary); font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem; outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.form-group input::placeholder { color: var(--text-muted); }
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent);
+}
+.form-group select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2371717a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+.form-group select option { background: #1a1a22; }
+.modal-submit {
+  margin-top: 4px;
+  background: var(--accent);
+  color: #09090b; border: none; border-radius: 10px;
+  padding: 15px 24px; font-family: 'Inter', sans-serif;
+  font-size: 1rem; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+.modal-submit:hover { background: #d4b275; transform: translateY(-1px); box-shadow: 0 8px 32px var(--accent-glow); }
+.modal-submit:active { transform: translateY(0); }
+.modal-disclaimer {
+  text-align: center; font-size: 0.75rem;
+  color: var(--text-muted); margin-top: 12px; line-height: 1.5;
+}
+/* Success state */
+.modal-success {
+  display: none; text-align: center; padding: 16px 0 8px;
+}
+.modal-success.show { display: block; }
+.modal-success .success-icon {
+  width: 56px; height: 56px; margin: 0 auto 20px;
+  background: var(--green-dim); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-success h3 { font-size: 1.375rem; font-weight: 700; margin-bottom: 10px; }
+.modal-success p { color: var(--text-secondary); font-size: 0.9375rem; margin-bottom: 0; }
+.modal-form-wrap { transition: opacity 0.2s; }
+.modal-form-wrap.hidden { opacity: 0; pointer-events: none; height: 0; overflow: hidden; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="logo">Wax<span>OS</span></a>
+    <div class="nav-links">
+      <a href="#systems">Systems</a>
+      <a href="#proof">Results</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a href="#" class="nav-cta open-modal">Join the founding group</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Founding members now open
+    </div>
+    <h1>
+      Your empty slots are costing you more than you think. <span class="highlight">WaxOS fills them automatically.</span>
+    </h1>
+    <p class="hero-sub">
+      The AI operating system built for independent wax specialists. Fill gaps, kill no-shows, close bookings, and reactivate ghosted clients &mdash; all on autopilot.
+    </p>
+    <div class="hero-cta-group">
+      <a href="#" class="btn-primary open-modal">
+        Join the founding group
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a href="#systems" class="btn-secondary">See how it works</a>
+    </div>
+    <div class="hero-proof">
+      <div class="proof-stat">
+        <div class="number">1,014</div>
+        <div class="label">Real clients in pilot</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-stat">
+        <div class="number">$169K+</div>
+        <div class="label">Pilot revenue tracked</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-stat">
+        <div class="number">5</div>
+        <div class="label">AI systems built</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="problem">
+  <div class="container">
+    <div class="problem-grid">
+      <div class="fade-up">
+        <div class="problem-label">The Revenue Leak</div>
+        <h2>Every empty slot is money walking out the door.</h2>
+        <p>You didn't build your skills to lose revenue to cancellations, ghost clients, and booking friction. But that's exactly what's happening &mdash; silently, every single week.</p>
+        <p>Most specialists don't see it because it never shows up on one report. It's scattered across missed texts, no-shows, and clients who just... stopped coming.</p>
+      </div>
+      <ul class="leak-list fade-up">
+        <li class="leak-item">
+          <div class="leak-icon">&#128337;</div>
+          <div class="leak-content">
+            <h4>Last-minute cancellations</h4>
+            <p>A slot that empties 2 hours before is almost impossible to fill manually. You eat the loss.</p>
+          </div>
+        </li>
+        <li class="leak-item">
+          <div class="leak-icon">&#128683;</div>
+          <div class="leak-content">
+            <h4>No-shows</h4>
+            <p>They said they'd be there. They didn't come. No revenue, no rebooking, no explanation.</p>
+          </div>
+        </li>
+        <li class="leak-item">
+          <div class="leak-icon">&#128172;</div>
+          <div class="leak-content">
+            <h4>DM inquiries that go cold</h4>
+            <p>They messaged at 11pm. You replied at 9am. By then they booked somewhere else.</p>
+          </div>
+        </li>
+        <li class="leak-item">
+          <div class="leak-icon">&#128123;</div>
+          <div class="leak-content">
+            <h4>Ghosted clients</h4>
+            <p>They came 3 times, loved it, then vanished. No one followed up. Revenue gone.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- SYSTEMS -->
+<section class="systems" id="systems">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-label">
+        <span>&#9679;</span> Five AI Systems
+      </div>
+      <h2>Every revenue leak. Plugged automatically.</h2>
+      <p>WaxOS runs five dedicated AI systems behind the scenes &mdash; each one targeting a specific way you lose money.</p>
+    </div>
+
+    <!-- System 1: Gap Filler -->
+    <div class="system-card fade-up">
+      <div class="system-content">
+        <div class="system-number">01 &mdash; GAP FILLER ENGINE</div>
+        <h3>Cancelled slot? Filled before you even notice.</h3>
+        <p>The moment a booking cancels, WaxOS instantly contacts your waitlist and recent clients with a personalized offer. Slots get filled in minutes, not hours.</p>
+        <ul class="system-bullets">
+          <li>Auto-detects cancellations in real-time</li>
+          <li>Contacts waitlisted clients instantly</li>
+          <li>Sends personalized time-sensitive offers</li>
+          <li>Falls back to broader audience if needed</li>
+        </ul>
+      </div>
+      <div class="system-visual">
+        <div class="visual-header">
+          <h4>Today's Schedule</h4>
+          <span class="visual-badge badge-live">LIVE</span>
+        </div>
+        <div class="slot-timeline">
+          <div class="slot-row">
+            <span class="slot-time">10:00</span>
+            <span class="slot-status slot-booked">Sarah M. &mdash; Brazilian</span>
+          </div>
+          <div class="slot-row">
+            <span class="slot-time">11:00</span>
+            <span class="slot-status slot-cancelled">Maya K. &mdash; Cancelled</span>
+            <span class="slot-arrow">&#10132;</span>
+            <span class="slot-status slot-filled">Jess T. &mdash; Filled!</span>
+          </div>
+          <div class="slot-row">
+            <span class="slot-time">12:00</span>
+            <span class="slot-status slot-booked">Priya L. &mdash; Full Body</span>
+          </div>
+          <div class="slot-row">
+            <span class="slot-time">1:00</span>
+            <span class="slot-status slot-cancelled">No booking</span>
+            <span class="slot-arrow">&#10132;</span>
+            <span class="slot-status slot-filled">Tina R. &mdash; Filled!</span>
+          </div>
+          <div class="slot-row">
+            <span class="slot-time">2:00</span>
+            <span class="slot-status slot-booked">Lauren D. &mdash; Bikini</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System 2: No Show Shield -->
+    <div class="system-card fade-up">
+      <div class="system-content">
+        <div class="system-number">02 &mdash; NO-SHOW SHIELD</div>
+        <h3>Stops no-shows before they happen.</h3>
+        <p>WaxOS scores every booking for no-show risk and intervenes automatically &mdash; smart reminders, deposit nudges, and confirmations timed for maximum impact.</p>
+        <ul class="system-bullets">
+          <li>AI-powered no-show risk scoring</li>
+          <li>Multi-touch confirmation sequences</li>
+          <li>Strategic deposit requests for high-risk bookings</li>
+          <li>Auto-fills if a no-show is detected</li>
+        </ul>
+      </div>
+      <div class="system-visual">
+        <div class="visual-header">
+          <h4>No-Show Prevention</h4>
+          <span class="visual-badge badge-active">ACTIVE</span>
+        </div>
+        <div class="risk-meter">
+          <div class="meter-label">
+            <span style="color:var(--green)">Low Risk</span>
+            <span style="color:var(--red)">High Risk</span>
+          </div>
+          <div class="meter-track"><div class="meter-fill" style="width:35%"></div></div>
+        </div>
+        <div class="risk-actions">
+          <div class="risk-action">
+            <div class="action-icon" style="background:var(--green-dim);color:var(--green)">&#10003;</div>
+            <span class="action-text">Confirmation sent &mdash; 48h before</span>
+            <span class="action-result" style="color:var(--green)">Confirmed</span>
+          </div>
+          <div class="risk-action">
+            <div class="action-icon" style="background:var(--accent-dim);color:var(--accent)">&#9993;</div>
+            <span class="action-text">Reminder sent &mdash; 24h before</span>
+            <span class="action-result" style="color:var(--accent)">Opened</span>
+          </div>
+          <div class="risk-action">
+            <div class="action-icon" style="background:var(--accent-dim);color:var(--accent)">&#128274;</div>
+            <span class="action-text">Deposit requested &mdash; High risk flagged</span>
+            <span class="action-result" style="color:var(--green)">Paid</span>
+          </div>
+          <div class="risk-action">
+            <div class="action-icon" style="background:var(--green-dim);color:var(--green)">&#9989;</div>
+            <span class="action-text">Final check-in &mdash; 2h before</span>
+            <span class="action-result" style="color:var(--green)">On the way</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System 3: AI Booking Closer -->
+    <div class="system-card fade-up">
+      <div class="system-content">
+        <div class="system-number">03 &mdash; AI BOOKING CLOSER</div>
+        <h3>Turns inquiries into bookings while you sleep.</h3>
+        <p>When a potential client DMs at midnight asking about your availability, WaxOS responds instantly with the right message, the right tone, and a direct booking link.</p>
+        <ul class="system-bullets">
+          <li>Responds to inquiries in under 60 seconds</li>
+          <li>Matches your brand voice and tone</li>
+          <li>Handles objections and questions naturally</li>
+          <li>Books directly into your calendar</li>
+        </ul>
+      </div>
+      <div class="system-visual">
+        <div class="visual-header">
+          <h4>AI Conversation</h4>
+          <span class="visual-badge badge-live">LIVE</span>
+        </div>
+        <div class="chat-demo">
+          <div class="chat-msg chat-incoming">
+            Hey! How much for a Brazilian? And do you have anything this week?
+          </div>
+          <div>
+            <div class="chat-ai-label">WaxOS AI &middot; 42 seconds</div>
+            <div class="chat-msg chat-ai">
+              Hey girl! Brazilians start at $65. I actually have a 2pm slot open Thursday and a 10am Friday. Want me to lock one in for you? &#128131;
+            </div>
+          </div>
+          <div class="chat-msg chat-incoming">
+            Thursday works!! Book me in
+          </div>
+          <div class="chat-result">
+            &#10003; Booking confirmed &mdash; Thu 2:00 PM
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System 4: Client Reactivation -->
+    <div class="system-card fade-up">
+      <div class="system-content">
+        <div class="system-number">04 &mdash; CLIENT REACTIVATION ENGINE</div>
+        <h3>Brings back clients who ghosted.</h3>
+        <p>WaxOS detects when a regular client goes quiet and launches a personalized reactivation sequence &mdash; timed messages that feel human, not automated.</p>
+        <ul class="system-bullets">
+          <li>Detects drop-off patterns automatically</li>
+          <li>Personalized win-back sequences</li>
+          <li>Special offers timed to their schedule</li>
+          <li>Escalates from soft nudge to direct offer</li>
+        </ul>
+      </div>
+      <div class="system-visual">
+        <div class="visual-header">
+          <h4>Reactivation Sequence</h4>
+          <span class="visual-badge badge-active">RUNNING</span>
+        </div>
+        <div class="reactivation-timeline">
+          <div class="reactivation-step">
+            <div class="step-day">Day 21 &mdash; Soft Nudge</div>
+            <div class="step-action">"Hey Mia! It's been a minute. Your skin is probably ready for some love &#128156;"</div>
+          </div>
+          <div class="reactivation-step">
+            <div class="step-day">Day 28 &mdash; Value Reminder</div>
+            <div class="step-action">"Quick tip: staying on your 4-week cycle keeps ingrowns away. Want me to save your usual slot?"</div>
+          </div>
+          <div class="reactivation-step">
+            <div class="step-day">Day 35 &mdash; Incentive</div>
+            <div class="step-action">"Miss you! Here's 15% off your next Brazilian &mdash; valid this week only."</div>
+            <div class="step-result">&#10003; Mia rebooked &mdash; Thursday 11am</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System 5: Revenue Dashboard -->
+    <div class="system-card fade-up">
+      <div class="system-content">
+        <div class="system-number">05 &mdash; SMART REVENUE DASHBOARD</div>
+        <h3>See exactly what automation earned you.</h3>
+        <p>No vanity metrics. WaxOS shows you exactly how much revenue each system recovered, what would have been lost, and where your next dollar is coming from.</p>
+        <ul class="system-bullets">
+          <li>Revenue recovered per system, per week</li>
+          <li>No-show rate tracking over time</li>
+          <li>Client retention analytics</li>
+          <li>ROI calculated automatically</li>
+        </ul>
+      </div>
+      <div class="system-visual">
+        <div class="visual-header">
+          <h4>March Revenue Report</h4>
+          <span class="visual-badge badge-live">LIVE</span>
+        </div>
+        <div class="dash-row">
+          <div class="dash-metric">
+            <div class="dm-label">Revenue Recovered</div>
+            <div class="dm-value dm-green">$2,847</div>
+          </div>
+          <div class="dash-metric">
+            <div class="dm-label">Slots Filled</div>
+            <div class="dm-value dm-accent">34</div>
+          </div>
+        </div>
+        <div class="dash-row">
+          <div class="dash-metric">
+            <div class="dm-label">No-Show Rate</div>
+            <div class="dm-value dm-green">4.2%</div>
+          </div>
+          <div class="dash-metric">
+            <div class="dm-label">Clients Reactivated</div>
+            <div class="dm-value dm-accent">12</div>
+          </div>
+        </div>
+        <div class="dash-bar-chart">
+          <div class="dash-bar dash-bar-dim" style="height:30%"></div>
+          <div class="dash-bar dash-bar-dim" style="height:45%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:55%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:65%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:50%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:80%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:75%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:90%"></div>
+          <div class="dash-bar dash-bar-accent" style="height:85%"></div>
+          <div class="dash-bar dash-bar-dim" style="height:40%"></div>
+          <div class="dash-bar dash-bar-dim" style="height:35%"></div>
+          <div class="dash-bar dash-bar-dim" style="height:50%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PILOT DATA — BRAZILIAN BLUEPRINT -->
+<section class="pilot-section" id="proof">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-label"><span>&#9679;</span> Live Pilot Data</div>
+      <h2>Built inside a real wax salon.</h2>
+    </div>
+    <p class="pilot-intro fade-up">WaxOS isn't a startup theory. It's the operating system being built and tested every day inside a working waxing business. The numbers below are live operational data from Brazilian Blueprint, the pilot salon that powers WaxOS.</p>
+    <div class="pilot-grid fade-up">
+      <div class="pilot-card">
+        <div class="pilot-number">1,014</div>
+        <div class="pilot-label">Clients in the Brazilian Blueprint database</div>
+      </div>
+      <div class="pilot-card">
+        <div class="pilot-number">$169,291</div>
+        <div class="pilot-label">Tracked revenue across 18 months</div>
+      </div>
+      <div class="pilot-card">
+        <div class="pilot-number">413</div>
+        <div class="pilot-label">Lapsed clients identified for reactivation</div>
+      </div>
+      <div class="pilot-card">
+        <div class="pilot-number">2,425</div>
+        <div class="pilot-label">Appointments of operational data</div>
+      </div>
+      <div class="pilot-card">
+        <div class="pilot-number">3</div>
+        <div class="pilot-label">Specialists running daily operations</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT ATTRIBUTION -->
+<section style="padding: 0 0 24px; text-align: center;">
+  <div class="container">
+    <p class="about-line">WaxOS is built and operated by Lux Skyn Haus LLC, a Rhode Island registered business operating Brazilian Blueprint waxing salon in Providence, RI.</p>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-label"><span>&#9679;</span> Founding Offer</div>
+      <h2>Lock in founding member pricing.</h2>
+      <p>This rate is only available to the first cohort. Once we close the doors, the price goes up.</p>
+    </div>
+    <div class="pricing-card fade-up">
+      <div class="pricing-badge">Founding Member</div>
+      <h3>WaxOS Complete</h3>
+      <div class="price">$197<span>/mo</span></div>
+      <div class="price-note">Locked in forever for founding members</div>
+      <ul class="pricing-features">
+        <li><span class="check">&#10003;</span> Gap Filler Engine</li>
+        <li><span class="check">&#10003;</span> No-Show Shield</li>
+        <li><span class="check">&#10003;</span> AI Booking Closer</li>
+        <li><span class="check">&#10003;</span> Client Reactivation Engine</li>
+        <li><span class="check">&#10003;</span> Smart Revenue Dashboard</li>
+        <li><span class="check">&#10003;</span> White-glove onboarding</li>
+        <li><span class="check">&#10003;</span> Priority support &amp; feature requests</li>
+      </ul>
+      <a href="#" class="pricing-cta open-modal">Join the founding group</a>
+      <div class="pricing-guarantee">30-day money-back guarantee. No contracts. Cancel anytime.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-label"><span>&#9679;</span> FAQ</div>
+      <h2>Common questions</h2>
+    </div>
+    <div class="faq-list fade-up">
+      <div class="faq-item">
+        <button class="faq-question">
+          Do I need to be tech-savvy to use WaxOS?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">Not at all. WaxOS is built for wax specialists, not developers. We handle the entire setup during your white-glove onboarding, and the dashboard is designed to be as simple as checking your Instagram notifications.</div>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">
+          Will the AI messages sound like me?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">Yes. During onboarding, we calibrate the AI to match your brand voice, tone, and even your emoji style. Clients won't know the difference &mdash; and you can review and adjust any template at any time.</div>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">
+          What booking systems does WaxOS work with?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">WaxOS integrates with all major booking platforms including Acuity, Square Appointments, Vagaro, Fresha, and more. If you use a different system, let us know &mdash; we're adding new integrations monthly.</div>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">
+          How fast will I see results?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">Most founding members see their first recovered revenue within the first week. The AI Booking Closer and Gap Filler Engine start working immediately after setup. Full optimization typically happens within 30 days as the system learns your client patterns.</div>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question">
+          What happens after the founding group closes?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">The price increases for all new members. Founding members keep their locked-in rate permanently, plus get priority access to every new feature, direct input on the product roadmap, and a dedicated support channel.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta" id="join">
+  <div class="container">
+    <h2>Stop losing revenue in your sleep.</h2>
+    <p>Join the founding group and let WaxOS run your backend revenue engine &mdash; so you can focus on what you do best.</p>
+    <a href="#" class="btn-primary open-modal">
+      Join the founding group
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- FOUNDING MEMBER MODAL -->
+<div class="modal-overlay" id="joinModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <button class="modal-close" id="modalClose" aria-label="Close">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div class="modal-badge">Founding Member — Limited Spots</div>
+    <h2 id="modalTitle">Secure your founding rate.</h2>
+    <p>$197/mo locked in forever. Price increases when the founding group closes.</p>
+
+    <div class="modal-form-wrap" id="modalFormWrap">
+      <form class='modal-form' id='foundingForm' method='POST' name='founding-member' data-netlify="true" netlify-honeypot="bot-field">
+        <input type="hidden" name="form-name" value="founding-member">
+        <input type="hidden" name="bot-field" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName">First name</label>
+            <input type="text" id="firstName" name="first_name" placeholder="Aisha" required>
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last name</label>
+            <input type="text" id="lastName" name="last_name" placeholder="Carter" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="phone">Phone number</label>
+          <input type="tel" id="phone" name="phone" required placeholder="(555) 555-5555">
+        </div>
+        <div class="form-group">
+          <label for="business">Business name</label>
+          <input type="text" id="business" name="business_name" placeholder="Smooth Studio">
+        </div>
+        <div class="form-group">
+          <label for="clientSize">How many active clients do you have?</label>
+          <select id="clientSize" name="client_size">
+            <option value="" disabled selected>Select a range</option>
+            <option value="under_50">Under 50</option>
+            <option value="50_100">50 – 100</option>
+            <option value="100_200">100 – 200</option>
+            <option value="200_plus">200+</option>
+          </select>
+        </div>
+        <div class="sms-consent">
+          <label class="consent-label">
+            <input type="checkbox" id="sms-consent" name="sms_consent" required>
+            <span>
+              I agree to receive recurring SMS messages from WaxOS / Lux Skyn Haus LLC at the phone number provided, including onboarding updates, founding group communications, and product announcements. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe at any time. Reply HELP for help. By checking this box, I confirm I am the subscriber or authorized user of this phone number. View our <a href="/privacy">Privacy Policy</a> and <a href="/terms">Terms of Service</a>.
+            </span>
+          </label>
+        </div>
+        <button type="submit" class="modal-submit">
+          Join the founding group
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+      <p class="modal-disclaimer">No payment now. We'll reach out within 24 hours to get you set up.</p>
+    </div>
+
+    <div class="modal-success" id="modalSuccess">
+      <div class="success-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h3>You're in.</h3>
+      <p>Welcome to the founding group. Expect an email from Jay within 24 hours with next steps.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-logo">Wax<span>OS</span></div>
+      <div class="footer-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="footer-copy">&copy; 2026 WaxOS &mdash; A product of Lux Skyn Haus LLC. All rights reserved.</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// FAQ accordion
+document.querySelectorAll('.faq-question').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const item = btn.parentElement;
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+  });
+});
+
+// Scroll-triggered fade-up animations
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    if (a.classList.contains('open-modal')) return;
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// Modal
+const modal = document.getElementById('joinModal');
+const formWrap = document.getElementById('modalFormWrap');
+const successEl = document.getElementById('modalSuccess');
+const form = document.getElementById('foundingForm');
+
+function openModal() {
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+  modal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.querySelectorAll('.open-modal').forEach(el => {
+  el.addEventListener('click', e => { e.preventDefault(); openModal(); });
+});
+
+document.getElementById('modalClose').addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// Netlify form submit with success state + SMS consent validation
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const consent = document.getElementById('sms-consent');
+  if (!consent.checked) {
+    consent.focus();
+    consent.reportValidity();
+    return;
+  }
+  const data = new FormData(form);
+  try {
+    await fetch('/', { method: 'POST', body: data });
+    formWrap.classList.add('hidden');
+    successEl.classList.add('show');
+  } catch {
+    form.submit();
+  }
+});
+</script>
+
+</body>
+</html>
