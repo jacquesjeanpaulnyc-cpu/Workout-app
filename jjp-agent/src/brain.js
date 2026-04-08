@@ -17,8 +17,8 @@ import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/
 import { definition as supabaseDef, execute as supabaseExec } from "./tools/supabase-query.js";
 import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
 import {
-  loadMemory, addMessage, remember, forget, getMemoryContext,
-  getMemorySummary, trackReminder, getRecentMessages
+  initMemory, addMessage, remember, forget, getMemoryContext,
+  getMemorySummary, trackReminder, getRecentMessages, autoSave, search
 } from "./memory.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -28,8 +28,8 @@ const MODEL = "claude-opus-4-20250514";
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
-// Load memory on startup
-loadMemory();
+// Initialize Mem0 on startup
+initMemory();
 
 // Tool registry
 const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef, calendarDef];
@@ -63,7 +63,7 @@ async function callClaude(body) {
   return res.json();
 }
 
-function buildSystemPrompt() {
+async function buildSystemPrompt(query = "") {
   const now = new Date();
   const today = now.toLocaleDateString("en-US", {
     weekday: "long",
@@ -85,7 +85,7 @@ function buildSystemPrompt() {
 
   const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
 
-  const memoryContext = getMemoryContext();
+  const memoryContext = await getMemoryContext(query);
 
   return `You are JJP Agent — the personal AI chief of staff for Jacques Jean Paul (Jay). You operate as his most trusted strategic advisor, executive assistant, and business intelligence system — all in one.
 
@@ -197,27 +197,36 @@ function buildMessages(userMessage) {
 }
 
 /**
- * Check if message is a memory command
+ * Check if message is a memory command (returns promise or null)
  */
 function handleMemoryCommand(text) {
   const lower = text.toLowerCase().trim();
 
+  // "remember that ..."
   const rememberMatch = lower.match(/^remember\s+(?:that\s+)?(.+)/);
   if (rememberMatch) {
     const item = text.slice(text.toLowerCase().indexOf(rememberMatch[1]));
-    const result = remember(item);
-    return `Locked in memory (${result.category}):\n"${item}"`;
+    return (async () => {
+      const result = await remember(item);
+      return result.saved
+        ? `Locked in Mem0:\n"${item}"`
+        : `Failed to save: ${result.reason}`;
+    })();
   }
 
+  // "forget ..."
   const forgetMatch = lower.match(/^forget\s+(?:about\s+)?(.+)/);
   if (forgetMatch) {
     const query = forgetMatch[1];
-    const result = forget(query);
-    return result.removed > 0
-      ? `Removed ${result.removed} item(s) matching "${query}" from memory.`
-      : `Nothing in memory matching "${query}".`;
+    return (async () => {
+      const result = await forget(query);
+      return result.removed > 0
+        ? `Removed ${result.removed} memory(ies) matching "${query}".`
+        : `Nothing in memory matching "${query}".`;
+    })();
   }
 
+  // "what do you remember" / "show memory" / "memory status"
   if (lower.includes("what do you remember") ||
       lower.includes("show memory") ||
       lower.includes("memory status") ||
@@ -225,38 +234,18 @@ function handleMemoryCommand(text) {
     return getMemorySummary();
   }
 
-  return null;
-}
-
-/**
- * Auto-extract important info from conversation to save to memory
- */
-async function autoExtractMemory(userMessage, agentResponse) {
-  try {
-    const res = await callClaude({
-      model: "claude-sonnet-4-20250514", // Use Sonnet for speed on extraction
-      max_tokens: 300,
-      system: "You analyze conversations and extract important items to remember. Output ONLY a JSON array of items to save, or an empty array [] if nothing important. Each item: {\"content\": \"...\", \"category\": \"priorities|decisions|flags|notes\"}. Only extract genuinely important business decisions, priorities, deadlines, or action items. Do NOT extract casual chat or questions.",
-      messages: [{
-        role: "user",
-        content: `User said: "${userMessage}"\nAgent replied: "${agentResponse}"\n\nExtract important items to remember (JSON array, or [] if nothing):`
-      }]
-    });
-
-    const text = extractText(res);
-    const match = text.match(/\[[\s\S]*\]/);
-    if (match) {
-      const items = JSON.parse(match[0]);
-      for (const item of items) {
-        if (item.content && item.content.length > 5) {
-          remember(item.content, item.category || "notes");
-          console.log(`[AUTO-MEMORY] Saved: ${item.content} (${item.category})`);
-        }
-      }
-    }
-  } catch {
-    // Silent fail — auto-extraction is best-effort
+  // "what do you remember about [topic]"
+  const aboutMatch = lower.match(/what do you (?:remember|know) about (.+)/);
+  if (aboutMatch) {
+    return (async () => {
+      const results = await search(aboutMatch[1], 5);
+      if (!results.length) return `Nothing in memory about "${aboutMatch[1]}".`;
+      const items = results.map(m => `• ${m.memory || m.content || m.text}`).join("\n");
+      return `Memories about "${aboutMatch[1]}":\n${items}`;
+    })();
   }
+
+  return null;
 }
 
 /**
@@ -268,17 +257,19 @@ export async function processMessage(userMessage, sendTelegram) {
   // Handle direct memory commands
   const memoryResponse = handleMemoryCommand(userMessage);
   if (memoryResponse) {
-    addMessage("agent", memoryResponse);
-    return memoryResponse;
+    const result = await memoryResponse;
+    addMessage("agent", result);
+    return result;
   }
 
   try {
     const messages = buildMessages(userMessage);
+    const systemPrompt = await buildSystemPrompt(userMessage);
 
     const response = await callClaude({
       model: MODEL,
       max_tokens: 2048,
-      system: buildSystemPrompt(),
+      system: systemPrompt,
       tools,
       messages
     });
@@ -320,7 +311,7 @@ export async function processMessage(userMessage, sendTelegram) {
       const followUp = await callClaude({
         model: MODEL,
         max_tokens: 2048,
-        system: buildSystemPrompt(),
+        system: systemPrompt,
         tools,
         messages: [
           ...messages,
@@ -331,15 +322,15 @@ export async function processMessage(userMessage, sendTelegram) {
 
       const text = extractText(followUp);
       addMessage("agent", text);
-      // Auto-extract memory in background
-      autoExtractMemory(userMessage, text);
+      // Auto-save to Mem0 in background (non-blocking)
+      autoSave(userMessage, text).catch(() => {});
       return text;
     }
 
     const text = extractText(response);
     addMessage("agent", text);
-    // Auto-extract memory in background
-    autoExtractMemory(userMessage, text);
+    // Auto-save to Mem0 in background (non-blocking)
+    autoSave(userMessage, text).catch(() => {});
     return text;
   } catch (err) {
     console.error("[BRAIN ERROR]", err.message);
@@ -380,10 +371,11 @@ Under 700 chars. Think like a chief of staff.`
   };
 
   try {
+    const systemPrompt = await buildSystemPrompt(prompts[type]);
     const response = await callClaude({
       model: MODEL,
       max_tokens: 1024,
-      system: buildSystemPrompt(),
+      system: systemPrompt,
       messages: [{ role: "user", content: prompts[type] }]
     });
 

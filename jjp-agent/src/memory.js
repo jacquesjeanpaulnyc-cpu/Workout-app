@@ -1,246 +1,252 @@
 /**
- * Memory Module — Persistent context across conversations
- * Stores decisions, priorities, messages, and flagged items in memory.json
+ * Mem0 Memory Module — Persistent AI memory via Mem0 Cloud
+ *
+ * Uses Mem0's managed memory service for semantic search,
+ * auto-extraction, and persistent memory across restarts.
+ *
+ * Also keeps a local message buffer for multi-turn context.
  */
 
+import { MemoryClient } from "mem0ai";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MEMORY_PATH = join(__dirname, "..", "memory.json");
+const LOCAL_BUFFER_PATH = join(__dirname, "..", "message-buffer.json");
 
-const DEFAULT_MEMORY = {
-  decisions: [],
-  priorities: [],
-  flags: [],
-  reminders: [],
-  recent_messages: [],
-  notes: []
-};
+const USER_ID = "jay_jjp";
 
-let memory = null;
+let client = null;
+let recentMessages = [];
 
 /**
- * Load memory from disk
+ * Initialize Mem0 client
  */
-export function loadMemory() {
+export function initMemory() {
+  const apiKey = process.env.MEM0_API_KEY;
+  if (!apiKey) {
+    console.warn("[MEM0] MEM0_API_KEY not set — memory disabled. Get a free key at https://app.mem0.ai");
+    return false;
+  }
+
+  client = new MemoryClient({ apiKey });
+  console.log("[MEM0] Memory client initialized for user:", USER_ID);
+
+  // Load local message buffer
+  loadMessageBuffer();
+  return true;
+}
+
+/**
+ * Load recent messages from disk (survives restarts)
+ */
+function loadMessageBuffer() {
   try {
-    if (existsSync(MEMORY_PATH)) {
-      const raw = readFileSync(MEMORY_PATH, "utf-8");
-      memory = JSON.parse(raw);
-      // Ensure all fields exist
-      for (const key of Object.keys(DEFAULT_MEMORY)) {
-        if (!memory[key]) memory[key] = [];
-      }
-    } else {
-      memory = structuredClone(DEFAULT_MEMORY);
-      saveMemory();
+    if (existsSync(LOCAL_BUFFER_PATH)) {
+      recentMessages = JSON.parse(readFileSync(LOCAL_BUFFER_PATH, "utf-8"));
     }
-  } catch (err) {
-    console.error("[MEMORY] Failed to load:", err.message);
-    memory = structuredClone(DEFAULT_MEMORY);
+  } catch {
+    recentMessages = [];
   }
-  return memory;
 }
 
 /**
- * Save memory to disk
+ * Save recent messages to disk
  */
-export function saveMemory() {
+function saveMessageBuffer() {
   try {
-    writeFileSync(MEMORY_PATH, JSON.stringify(memory, null, 2), "utf-8");
+    writeFileSync(LOCAL_BUFFER_PATH, JSON.stringify(recentMessages, null, 2), "utf-8");
   } catch (err) {
-    console.error("[MEMORY] Failed to save:", err.message);
+    console.error("[MEM0] Failed to save message buffer:", err.message);
   }
 }
 
-/**
- * Add a message to recent history (keeps last 10)
- */
 /**
  * Add a message to recent history (keeps last 10)
  */
 export function addMessage(role, text) {
-  if (!memory) loadMemory();
-  memory.recent_messages.push({
+  recentMessages.push({
     role,
     text: text.slice(0, 500),
     timestamp: new Date().toISOString()
   });
-  // Keep last 10
-  if (memory.recent_messages.length > 10) {
-    memory.recent_messages = memory.recent_messages.slice(-10);
+  if (recentMessages.length > 10) {
+    recentMessages = recentMessages.slice(-10);
   }
-  saveMemory();
+  saveMessageBuffer();
 }
 
 /**
  * Get recent messages for multi-turn context
  */
 export function getRecentMessages() {
-  if (!memory) loadMemory();
-  return memory.recent_messages;
+  return recentMessages;
 }
 
 /**
- * Remember something permanently
+ * Add a memory to Mem0 (explicit "remember that...")
  */
-export function remember(item, category = "notes") {
-  if (!memory) loadMemory();
-  const entry = {
-    content: item,
-    created: new Date().toISOString()
-  };
+export async function remember(text) {
+  if (!client) return { saved: false, reason: "Mem0 not configured" };
 
-  // Detect category from content
-  const lower = item.toLowerCase();
-  if (lower.includes("priority") || lower.includes("important") || lower.includes("focus")) {
-    category = "priorities";
-  } else if (lower.includes("decided") || lower.includes("decision") || lower.includes("going to")) {
-    category = "decisions";
-  } else if (lower.includes("flag") || lower.includes("watch") || lower.includes("track")) {
-    category = "flags";
-  }
-
-  memory[category].push(entry);
-  saveMemory();
-  return { category, entry };
-}
-
-/**
- * Forget something from memory
- */
-export function forget(query) {
-  if (!memory) loadMemory();
-  const lower = query.toLowerCase();
-  let removed = 0;
-
-  for (const category of ["notes", "priorities", "decisions", "flags"]) {
-    const before = memory[category].length;
-    memory[category] = memory[category].filter(
-      item => !item.content.toLowerCase().includes(lower)
-    );
-    removed += before - memory[category].length;
-  }
-
-  saveMemory();
-  return { removed, query };
-}
-
-/**
- * Track a reminder
- */
-export function trackReminder(message, time, status = "pending") {
-  if (!memory) loadMemory();
-  memory.reminders.push({
-    message,
-    time,
-    status,
-    created: new Date().toISOString()
-  });
-  // Keep last 20 reminders
-  if (memory.reminders.length > 20) {
-    memory.reminders = memory.reminders.slice(-20);
-  }
-  saveMemory();
-}
-
-/**
- * Mark a reminder as sent
- */
-export function markReminderSent(message) {
-  if (!memory) loadMemory();
-  const reminder = memory.reminders.find(
-    r => r.message === message && r.status === "pending"
-  );
-  if (reminder) {
-    reminder.status = "sent";
-    saveMemory();
+  try {
+    const result = await client.add([
+      { role: "user", content: `Remember this: ${text}` }
+    ], {
+      user_id: USER_ID,
+      metadata: { source: "explicit", timestamp: new Date().toISOString() }
+    });
+    console.log("[MEM0] Saved explicit memory:", text.slice(0, 80));
+    return { saved: true, memories: result.results || result };
+  } catch (err) {
+    console.error("[MEM0] Failed to save:", err.message);
+    return { saved: false, reason: err.message };
   }
 }
 
 /**
- * Get full memory summary for system prompt injection
+ * Auto-save conversation context to Mem0 (after every exchange)
  */
-export function getMemoryContext() {
-  if (!memory) loadMemory();
+export async function autoSave(userMessage, agentResponse) {
+  if (!client) return;
 
-  const sections = [];
-
-  if (memory.priorities.length > 0) {
-    sections.push("CURRENT PRIORITIES:\n" +
-      memory.priorities.map(p => `- ${p.content}`).join("\n"));
+  try {
+    await client.add([
+      { role: "user", content: userMessage },
+      { role: "assistant", content: agentResponse }
+    ], {
+      user_id: USER_ID,
+      metadata: { source: "auto", timestamp: new Date().toISOString() }
+    });
+    console.log("[MEM0] Auto-saved conversation context");
+  } catch (err) {
+    console.error("[MEM0] Auto-save failed:", err.message);
   }
-
-  if (memory.decisions.length > 0) {
-    sections.push("KEY DECISIONS:\n" +
-      memory.decisions.map(d => `- ${d.content}`).join("\n"));
-  }
-
-  if (memory.flags.length > 0) {
-    sections.push("FLAGGED ITEMS:\n" +
-      memory.flags.map(f => `- ${f.content}`).join("\n"));
-  }
-
-  if (memory.notes.length > 0) {
-    sections.push("NOTES:\n" +
-      memory.notes.map(n => `- ${n.content}`).join("\n"));
-  }
-
-  const pendingReminders = memory.reminders.filter(r => r.status === "pending");
-  if (pendingReminders.length > 0) {
-    sections.push("PENDING REMINDERS:\n" +
-      pendingReminders.map(r => `- ${r.time}: ${r.message}`).join("\n"));
-  }
-
-  if (memory.recent_messages.length > 0) {
-    sections.push("RECENT CONVERSATION:\n" +
-      memory.recent_messages.map(m =>
-        `[${m.role}] ${m.text}`
-      ).join("\n"));
-  }
-
-  return sections.length > 0
-    ? "\n\n--- MEMORY ---\n" + sections.join("\n\n")
-    : "";
 }
 
 /**
- * Get a human-readable summary of all memory
+ * Search Mem0 for relevant memories
  */
-export function getMemorySummary() {
-  if (!memory) loadMemory();
+export async function search(query, limit = 5) {
+  if (!client) return [];
 
-  const lines = [];
-
-  if (memory.priorities.length > 0) {
-    lines.push("PRIORITIES:");
-    memory.priorities.forEach(p => lines.push(`  • ${p.content}`));
+  try {
+    const results = await client.search(query, {
+      user_id: USER_ID,
+      limit
+    });
+    return results.results || results || [];
+  } catch (err) {
+    console.error("[MEM0] Search failed:", err.message);
+    return [];
   }
+}
 
-  if (memory.decisions.length > 0) {
-    lines.push("\nDECISIONS:");
-    memory.decisions.forEach(d => lines.push(`  • ${d.content}`));
+/**
+ * Get all memories
+ */
+export async function getAll() {
+  if (!client) return [];
+
+  try {
+    const results = await client.getAll({
+      user_id: USER_ID,
+      limit: 50
+    });
+    return results.results || results || [];
+  } catch (err) {
+    console.error("[MEM0] GetAll failed:", err.message);
+    return [];
   }
+}
 
-  if (memory.flags.length > 0) {
-    lines.push("\nFLAGGED:");
-    memory.flags.forEach(f => lines.push(`  • ${f.content}`));
+/**
+ * Delete memories matching a query
+ */
+export async function forget(query) {
+  if (!client) return { removed: 0 };
+
+  try {
+    // Search for matching memories first
+    const matches = await search(query, 10);
+    let removed = 0;
+
+    for (const mem of matches) {
+      const memId = mem.id || mem.memory_id;
+      if (memId) {
+        try {
+          await client.delete(memId);
+          removed++;
+        } catch {
+          // Skip if can't delete
+        }
+      }
+    }
+
+    console.log(`[MEM0] Removed ${removed} memories matching: ${query}`);
+    return { removed, query };
+  } catch (err) {
+    console.error("[MEM0] Forget failed:", err.message);
+    return { removed: 0, error: err.message };
   }
+}
 
-  if (memory.notes.length > 0) {
-    lines.push("\nNOTES:");
-    memory.notes.forEach(n => lines.push(`  • ${n.content}`));
+/**
+ * Build memory context string for system prompt injection
+ */
+export async function getMemoryContext(query) {
+  if (!client) return "";
+
+  try {
+    const memories = await search(query, 8);
+    if (!memories.length) return "";
+
+    const items = memories.map(m => {
+      const text = m.memory || m.content || m.text || JSON.stringify(m);
+      return `- ${text}`;
+    }).join("\n");
+
+    return `\n\n═══ RELEVANT MEMORIES ═══\n${items}`;
+  } catch {
+    return "";
   }
+}
 
-  const pending = memory.reminders.filter(r => r.status === "pending");
-  if (pending.length > 0) {
-    lines.push("\nPENDING REMINDERS:");
-    pending.forEach(r => lines.push(`  • ${r.time}: ${r.message}`));
+/**
+ * Get a human-readable summary of all memories
+ */
+export async function getMemorySummary() {
+  if (!client) return "Mem0 not configured. Add MEM0_API_KEY to .env (free at https://app.mem0.ai)";
+
+  try {
+    const all = await getAll();
+    if (!all.length) return "Memory is empty. Tell me to remember something.";
+
+    const lines = all.map(m => {
+      const text = m.memory || m.content || m.text || JSON.stringify(m);
+      return `• ${text}`;
+    });
+
+    return `MEMORY (${all.length} items):\n${lines.join("\n")}\n\n${recentMessages.length} recent messages in context.`;
+  } catch (err) {
+    return `Memory error: ${err.message}`;
   }
+}
 
-  lines.push(`\n${memory.recent_messages.length} recent messages in context.`);
-
-  return lines.length > 1 ? lines.join("\n") : "Memory is empty. Tell me to remember something.";
+/**
+ * Track a reminder in memory
+ */
+export async function trackReminder(message, time) {
+  if (!client) return;
+  try {
+    await client.add([
+      { role: "user", content: `I set a reminder for ${time}: ${message}` }
+    ], {
+      user_id: USER_ID,
+      metadata: { source: "reminder", time, status: "pending" }
+    });
+  } catch {
+    // Best effort
+  }
 }
