@@ -1,57 +1,22 @@
 /**
- * Daily Briefings — Scheduled pushes to Telegram
+ * Briefings — Now handled by launchd (external to agent process)
  *
- * Schedule (Eastern Time):
- * - 5:30 AM daily — Morning brief
- * - 8:00 PM daily — Evening wind-down
- * - 7:00 AM Sunday — Weekly intel
+ * The 3 briefing schedules run via macOS launchd plists:
+ *   com.jjp.briefing.morning  → 5:30 AM daily
+ *   com.jjp.briefing.evening  → 8:00 PM daily
+ *   com.jjp.briefing.sunday   → 7:00 AM Sunday
+ *
+ * Each plist triggers: node src/briefing-standalone.js <type>
+ * This runs independently of the main agent — survives restarts,
+ * Mac sleep, and agent crashes.
+ *
+ * Setup: bash setup-briefings.sh
  */
 
-import cron from "node-cron";
-import { generateBriefing } from "./brain.js";
-import { sendToOwner } from "./bot.js";
-
 export function startBriefings() {
-  console.log("[BRIEFINGS] Scheduling daily briefings (America/New_York)...");
-
-  // 5:30 AM daily — Morning brief
-  cron.schedule("30 5 * * *", async () => {
-    console.log("[BRIEFING] Sending morning brief...");
-    try {
-      const briefing = await generateBriefing("morning");
-      await sendToOwner(`☀️ MORNING BRIEF\n\n${briefing}`);
-      console.log("[BRIEFING] Morning brief sent.");
-    } catch (err) {
-      console.error("[BRIEFING] Morning brief failed:", err.message);
-    }
-  }, { timezone: "America/New_York" });
-
-  // 8:00 PM daily — Evening wind-down
-  cron.schedule("0 20 * * *", async () => {
-    console.log("[BRIEFING] Sending evening wind-down...");
-    try {
-      const briefing = await generateBriefing("evening");
-      await sendToOwner(`🌙 EVENING WIND-DOWN\n\n${briefing}`);
-      console.log("[BRIEFING] Evening wind-down sent.");
-    } catch (err) {
-      console.error("[BRIEFING] Evening wind-down failed:", err.message);
-    }
-  }, { timezone: "America/New_York" });
-
-  // 7:00 AM Sunday — Weekly intel
-  cron.schedule("0 7 * * 0", async () => {
-    console.log("[BRIEFING] Sending weekly intel...");
-    try {
-      const briefing = await generateBriefing("weekly");
-      await sendToOwner(`📊 WEEKLY INTEL — SUNDAY\n\n${briefing}`);
-      console.log("[BRIEFING] Weekly intel sent.");
-    } catch (err) {
-      console.error("[BRIEFING] Weekly intel failed:", err.message);
-    }
-  }, { timezone: "America/New_York" });
-
-  console.log("[BRIEFINGS] All briefings scheduled:");
+  console.log("[BRIEFINGS] Briefings run via launchd (independent of agent):");
   console.log("  - 5:30 AM ET daily → Morning brief");
   console.log("  - 8:00 PM ET daily → Evening wind-down");
   console.log("  - 7:00 AM ET Sunday → Weekly intel");
+  console.log("[BRIEFINGS] Run 'bash setup-briefings.sh' if not yet configured.");
 }
