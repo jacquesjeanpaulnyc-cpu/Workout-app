@@ -9,6 +9,7 @@ import { definition as squareRevDef, execute as squareRevExec } from "./tools/sq
 import { definition as reminderDef, execute as reminderExec } from "./tools/send-reminder.js";
 import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/draft-email.js";
 import { definition as supabaseDef, execute as supabaseExec } from "./tools/supabase-query.js";
+import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-sonnet-4-20250514";
@@ -18,14 +19,15 @@ const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.e
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
 // Tool registry
-const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef];
+const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef, calendarDef];
 
 const toolExecutors = {
   web_search: webSearchExec,
   square_revenue: squareRevExec,
   send_reminder: reminderExec,
-  draft_email: draftEmailExec,
-  supabase_query: supabaseExec
+  send_email: draftEmailExec,
+  supabase_query: supabaseExec,
+  google_calendar: calendarExec
 };
 
 async function callClaude(body) {
@@ -78,8 +80,9 @@ TOOLS AVAILABLE:
 - web_search: search for current intel
 - square_revenue: pull salon revenue from Square API
 - send_reminder: schedule a reminder to send at a specific time
-- draft_email: create a Gmail draft
+- send_email: send or draft emails from two Gmail accounts — "personal" (jacquesjeanpaul.nyc@gmail.com) or "salon" (thebrazilianblueprint@gmail.com). Defaults to draft for safety. Set action to "send" to send immediately.
 - supabase_query: pull WaxOS pilot data — appointments, clients, specialists (Anyssa/Selena/Dallas), no-shows, reactivation campaigns. Use query_type "pilot_summary" for a full overview.
+- google_calendar: create events or list upcoming schedule on Jay's Google Calendar. Use for any "add to calendar", "what's my schedule", or "block time" request.
 
 RULES:
 - Decide which tool to call based on what Jay says.
