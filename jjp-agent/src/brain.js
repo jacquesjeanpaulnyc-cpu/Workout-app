@@ -56,7 +56,14 @@ function buildSystemPrompt() {
     weekday: "long",
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: "America/New_York"
+  });
+
+  const currentTime = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York"
   });
 
   const august1 = new Date(2026, 7, 1); // August 1, 2026
@@ -66,6 +73,7 @@ function buildSystemPrompt() {
   return `You are JJP Agent — personal AI chief of staff for Jacques Jean Paul (Jay).
 
 TODAY: ${today}
+CURRENT TIME: ${currentTime} ET
 DAYS UNTIL AUGUST 1, 2026: ${daysToAugust}
 
 CONTEXT:
