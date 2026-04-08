@@ -1,6 +1,7 @@
 /**
  * Claude Brain — Routes messages through Claude with tool use
  * Uses undici fetch with proxy support for compatibility.
+ * Includes persistent memory layer.
  */
 
 import { fetch as undiciFetch, ProxyAgent } from "undici";
@@ -10,6 +11,10 @@ import { definition as reminderDef, execute as reminderExec } from "./tools/send
 import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/draft-email.js";
 import { definition as supabaseDef, execute as supabaseExec } from "./tools/supabase-query.js";
 import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
+import {
+  loadMemory, addMessage, remember, forget, getMemoryContext,
+  getMemorySummary, trackReminder
+} from "./memory.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-sonnet-4-20250514";
@@ -17,6 +22,9 @@ const MODEL = "claude-sonnet-4-20250514";
 // Proxy setup — use HTTPS_PROXY if available
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+
+// Load memory on startup
+loadMemory();
 
 // Tool registry
 const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef, calendarDef];
@@ -70,6 +78,8 @@ function buildSystemPrompt() {
   const msPerDay = 1000 * 60 * 60 * 24;
   const daysToAugust = Math.ceil((august1 - now) / msPerDay);
 
+  const memoryContext = getMemoryContext();
+
   return `You are JJP Agent — personal AI chief of staff for Jacques Jean Paul (Jay).
 
 TODAY: ${today}
@@ -98,7 +108,46 @@ RULES:
 - Keep responses under 300 characters — this is Telegram.
 - Be direct. Sharp. Like a trusted advisor who knows this business cold.
 - When discussing relocation or legal matters, always mention consulting immigration attorney.
-- Reference days until August 2026 when relevant to deadlines.`;
+- Reference days until August 2026 when relevant to deadlines.
+- Reference items from MEMORY when relevant to Jay's question.
+- When Jay mentions priorities, decisions, or important items, acknowledge them and use them in future responses.${memoryContext}`;
+}
+
+/**
+ * Check if message is a memory command and handle directly
+ * Returns response string if handled, null if not a memory command
+ */
+function handleMemoryCommand(text) {
+  const lower = text.toLowerCase().trim();
+
+  // "remember that ..."
+  const rememberMatch = lower.match(/^remember\s+(?:that\s+)?(.+)/);
+  if (rememberMatch) {
+    const item = text.slice(text.toLowerCase().indexOf(rememberMatch[1]));
+    const result = remember(item);
+    return `Locked in memory (${result.category}):\n"${item}"`;
+  }
+
+  // "forget ..."
+  const forgetMatch = lower.match(/^forget\s+(?:about\s+)?(.+)/);
+  if (forgetMatch) {
+    const query = forgetMatch[1];
+    const result = forget(query);
+    if (result.removed > 0) {
+      return `Removed ${result.removed} item(s) matching "${query}" from memory.`;
+    }
+    return `Nothing in memory matching "${query}".`;
+  }
+
+  // "what do you remember" / "show memory" / "memory status"
+  if (lower.includes("what do you remember") ||
+      lower.includes("show memory") ||
+      lower.includes("memory status") ||
+      lower === "memory") {
+    return getMemorySummary();
+  }
+
+  return null;
 }
 
 /**
@@ -108,6 +157,16 @@ RULES:
  * @returns {string} The response text
  */
 export async function processMessage(userMessage, sendTelegram) {
+  // Log user message to memory
+  addMessage("jay", userMessage);
+
+  // Check for direct memory commands
+  const memoryResponse = handleMemoryCommand(userMessage);
+  if (memoryResponse) {
+    addMessage("agent", memoryResponse);
+    return memoryResponse;
+  }
+
   try {
     const response = await callClaude({
       model: MODEL,
@@ -136,6 +195,10 @@ export async function processMessage(userMessage, sendTelegram) {
         let result;
         if (toolUse.name === "send_reminder") {
           result = executor(toolUse.input, sendTelegram);
+          // Track reminder in memory
+          if (result.confirmed) {
+            trackReminder(result.message, result.time);
+          }
         } else {
           result = await executor(toolUse.input);
         }
@@ -160,10 +223,14 @@ export async function processMessage(userMessage, sendTelegram) {
         ]
       });
 
-      return extractText(followUp);
+      const text = extractText(followUp);
+      addMessage("agent", text);
+      return text;
     }
 
-    return extractText(response);
+    const text = extractText(response);
+    addMessage("agent", text);
+    return text;
   } catch (err) {
     console.error("[BRAIN ERROR]", err.message);
     return `Agent error: ${err.message}`;
@@ -178,14 +245,14 @@ export async function generateBriefing(type) {
     morning: `Generate Jay's morning briefing. Include:
 - Today's date and day of week
 - Days until August 1, 2026
-- Key priorities for today
+- Key priorities for today (check MEMORY for Jay's current priorities)
 - Any upcoming deadlines (Blueprint Collective Aug 15, Anyssa retiring Aug 2026, Ecuador relocation)
 - Motivational closer
 Keep it punchy. Under 500 chars.`,
 
     evening: `Generate Jay's evening wind-down briefing. Include:
 - Quick reflection prompt for the day
-- Tomorrow's top priority
+- Tomorrow's top priority (check MEMORY)
 - Days until August 1, 2026 countdown
 - Reminder to log workout/food/water in Powerhouse app
 Keep it calm but focused. Under 400 chars.`,
@@ -193,7 +260,7 @@ Keep it calm but focused. Under 400 chars.`,
     weekly: `Generate Jay's Sunday weekly intel briefing. Include:
 - Week in review framing
 - Days until August 1, 2026
-- Key focus areas for the coming week
+- Key focus areas for the coming week (check MEMORY for priorities)
 - Status check items: WaxOS A2P, Blueprint staffing, Ecuador planning
 - One strategic question to think about
 Under 600 chars.`
