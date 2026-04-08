@@ -282,6 +282,15 @@ Under 600 chars.`
 }
 
 function extractText(response) {
+  if (!response || !response.content) return "Agent couldn't generate a response. Try again.";
   const textBlocks = response.content.filter(b => b.type === "text");
-  return textBlocks.map(b => b.text).join("\n") || "No response generated.";
+  if (textBlocks.length === 0) {
+    // If Claude only returned tool_use with no text, summarize
+    const toolBlocks = response.content.filter(b => b.type === "tool_use");
+    if (toolBlocks.length > 0) {
+      return "Processing your request — try asking again if you don't see a result.";
+    }
+    return "Agent couldn't generate a response. Try rephrasing.";
+  }
+  return textBlocks.map(b => b.text).join("\n");
 }

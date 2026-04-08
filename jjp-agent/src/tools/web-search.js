@@ -2,6 +2,15 @@
  * Web Search Tool — DuckDuckGo Instant Answer API
  */
 
+import { fetch as undiciFetch, ProxyAgent } from "undici";
+
+const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+
+function fetchUrl(url, options = {}) {
+  return undiciFetch(url, { ...options, ...(dispatcher ? { dispatcher } : {}) });
+}
+
 export const definition = {
   name: "web_search",
   description: "Search the web for current information. Use when Jay asks about news, prices, events, or anything requiring live data.",
@@ -20,7 +29,7 @@ export const definition = {
 export async function execute({ query }) {
   try {
     const encoded = encodeURIComponent(query);
-    const res = await fetch(
+    const res = await fetchUrl(
       `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`
     );
     const data = await res.json();
@@ -49,7 +58,7 @@ export async function execute({ query }) {
     }
 
     // Fallback — try DuckDuckGo HTML search
-    const htmlRes = await fetch(
+    const htmlRes = await fetchUrl(
       `https://html.duckduckgo.com/html/?q=${encoded}`,
       { headers: { "User-Agent": "JJP-Agent/1.0" } }
     );
@@ -66,8 +75,9 @@ export async function execute({ query }) {
       return { results: snippets };
     }
 
-    return { error: "No results found. Try rephrasing." };
+    // If DuckDuckGo returns nothing, give Claude context to answer from knowledge
+    return { note: `No web results for "${query}". Answer from your own knowledge.` };
   } catch (err) {
-    return { error: `Search failed: ${err.message}` };
+    return { note: `Search unavailable. Answer "${query}" from your own knowledge.` };
   }
 }
