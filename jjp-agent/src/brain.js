@@ -1,14 +1,15 @@
 /**
  * Claude Brain — Routes messages through Claude with tool use
+ * Uses direct fetch to Anthropic API for maximum compatibility.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import { definition as webSearchDef, execute as webSearchExec } from "./tools/web-search.js";
 import { definition as squareRevDef, execute as squareRevExec } from "./tools/square-revenue.js";
 import { definition as reminderDef, execute as reminderExec } from "./tools/send-reminder.js";
 import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/draft-email.js";
 
-const client = new Anthropic();
+const API_URL = "https://api.anthropic.com/v1/messages";
+const MODEL = "claude-sonnet-4-20250514";
 
 // Tool registry
 const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef];
@@ -19,6 +20,25 @@ const toolExecutors = {
   send_reminder: reminderExec,
   draft_email: draftEmailExec
 };
+
+async function callClaude(body) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`API ${res.status}: ${errText}`);
+  }
+
+  return res.json();
+}
 
 function buildSystemPrompt() {
   const now = new Date();
@@ -69,8 +89,8 @@ RULES:
  */
 export async function processMessage(userMessage, sendTelegram) {
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+    const response = await callClaude({
+      model: MODEL,
       max_tokens: 1024,
       system: buildSystemPrompt(),
       tools,
@@ -108,8 +128,8 @@ export async function processMessage(userMessage, sendTelegram) {
       }
 
       // Send tool results back to Claude for final response
-      const followUp = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+      const followUp = await callClaude({
+        model: MODEL,
         max_tokens: 1024,
         system: buildSystemPrompt(),
         tools,
@@ -160,8 +180,8 @@ Under 600 chars.`
   };
 
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+    const response = await callClaude({
+      model: MODEL,
       max_tokens: 512,
       system: buildSystemPrompt(),
       messages: [{ role: "user", content: prompts[type] }]
