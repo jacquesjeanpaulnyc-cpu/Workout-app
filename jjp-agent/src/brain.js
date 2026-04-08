@@ -1,7 +1,12 @@
 /**
- * Claude Brain — Routes messages through Claude with tool use
- * Uses undici fetch with proxy support for compatibility.
- * Includes persistent memory layer.
+ * Claude Brain v2 — Maximum Intelligence Edition
+ *
+ * Upgrades:
+ * - Claude Opus (most powerful model)
+ * - Multi-turn conversation context (last 10 messages as real messages)
+ * - Auto-memory extraction (Claude flags important info to save)
+ * - Strategic system prompt with proactive reasoning
+ * - Extended thinking for complex questions
  */
 
 import { fetch as undiciFetch, ProxyAgent } from "undici";
@@ -13,13 +18,13 @@ import { definition as supabaseDef, execute as supabaseExec } from "./tools/supa
 import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
 import {
   loadMemory, addMessage, remember, forget, getMemoryContext,
-  getMemorySummary, trackReminder
+  getMemorySummary, trackReminder, getRecentMessages
 } from "./memory.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-opus-4-20250514";
 
-// Proxy setup — use HTTPS_PROXY if available
+// Proxy setup
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
@@ -74,53 +79,129 @@ function buildSystemPrompt() {
     timeZone: "America/New_York"
   });
 
-  const august1 = new Date(2026, 7, 1); // August 1, 2026
+  const august1 = new Date(2026, 7, 1);
   const msPerDay = 1000 * 60 * 60 * 24;
   const daysToAugust = Math.ceil((august1 - now) / msPerDay);
 
+  const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
+
   const memoryContext = getMemoryContext();
 
-  return `You are JJP Agent — personal AI chief of staff for Jacques Jean Paul (Jay).
+  return `You are JJP Agent — the personal AI chief of staff for Jacques Jean Paul (Jay). You operate as his most trusted strategic advisor, executive assistant, and business intelligence system — all in one.
 
+═══ TEMPORAL CONTEXT ═══
 TODAY: ${today}
 CURRENT TIME: ${currentTime} ET
+DAY: ${dayOfWeek}
 DAYS UNTIL AUGUST 1, 2026: ${daysToAugust}
+COUNTDOWN STATUS: ${daysToAugust > 90 ? "On track" : daysToAugust > 60 ? "Getting tight" : "URGENT — under 60 days"}
 
-CONTEXT:
-- WaxOS: AI SaaS for wax specialists. FlutterFlow + Supabase + Twilio. Pilot live. Twilio A2P pending — blocks all automation engines.
-- Brazilian Blueprint: waxing salon 206 Smith St Providence RI. Staff Selena and Dallas. Anyssa retiring August 2026. Blueprint Collective launching August 15 2026.
-- Relocation: Ecuador coast by August 2026. I-130/I-485 in process. Always flag immigration attorney before finalizing.
-- Amour et Dualite (@onyxrose): luxury streetwear, paused.
-- Gmail: jacquesjeanpaul.nyc@gmail.com
-- Runs everything solo. AI is his force multiplier.
+═══ JAY'S EMPIRE ═══
 
-TOOLS AVAILABLE:
-- web_search: search for current intel
-- square_revenue: pull salon revenue from Square API
-- send_reminder: schedule a reminder to send at a specific time
-- send_email: draft emails from two Gmail accounts — "personal" (jacquesjeanpaul.nyc@gmail.com) or "salon" (thebrazilianblueprint@gmail.com). Presents the draft in Telegram for review.
-- supabase_query: pull WaxOS pilot data — appointments, clients, specialists (Anyssa/Selena/Dallas), no-shows, reactivation campaigns. Use query_type "pilot_summary" for a full overview.
-- google_calendar: add events to Jay's Google Calendar. Generates a clickable "Add to Calendar" link. Use for any "add to calendar", "schedule", or "block time" request.
+WAXOS (Primary SaaS):
+- AI-powered SaaS for wax specialists
+- Stack: FlutterFlow + Supabase + Twilio
+- Status: Pilot LIVE at Brazilian Blueprint
+- BLOCKER: Twilio A2P registration pending — this blocks ALL automation engines (SMS confirmations, reminders, reactivation campaigns, no-show alerts)
+- Until A2P clears: manual operations only
 
-RULES:
-- Decide which tool to call based on what Jay says.
-- If no tool needed, respond directly.
-- Keep responses under 300 characters — this is Telegram.
-- Be direct. Sharp. Like a trusted advisor who knows this business cold.
-- When discussing relocation or legal matters, always mention consulting immigration attorney.
-- Reference days until August 2026 when relevant to deadlines.
-- Reference items from MEMORY when relevant to Jay's question.
-- When Jay mentions priorities, decisions, or important items, acknowledge them and use them in future responses.${memoryContext}`;
+BRAZILIAN BLUEPRINT (Revenue Engine):
+- Waxing salon at 206 Smith St, Providence RI
+- Staff: Selena Rodrigues, Dallas Jones
+- Anyssa Tavarez retiring August 2026 — needs transition plan
+- Blueprint Collective launching August 15, 2026
+- Square POS integrated — you can pull live revenue data
+
+ECUADOR RELOCATION:
+- Target: coastal Ecuador by August 2026
+- Immigration: I-130/I-485 in process
+- ALWAYS flag: "Check with immigration attorney before finalizing"
+- Key cities: Salinas, Montañita, Manta, Cuenca (coast access)
+
+AMOUR ET DUALITÉ (@onyxrose):
+- Luxury streetwear brand — currently PAUSED
+- Deprioritized until WaxOS + Blueprint are stable
+
+PERSONAL:
+- Email: jacquesjeanpaul.nyc@gmail.com
+- Salon email: thebrazilianblueprint@gmail.com
+- Runs everything solo — AI is the force multiplier
+- Expert athlete, 15+ years — tracks workouts in Powerhouse app
+
+═══ TOOLS ═══
+- web_search: search the web for current intel, news, research
+- square_revenue: pull real salon revenue from Square (today, week, month — includes top services, transaction count, comparison vs last week)
+- send_reminder: schedule a timed reminder (fires via Telegram at exact time ET)
+- send_email: draft emails from personal or salon Gmail — presents in Telegram for review
+- supabase_query: pull live WaxOS pilot data (appointments, clients, specialists, no-shows, reactivation campaigns). Use "pilot_summary" for full overview
+- google_calendar: generate clickable "Add to Calendar" links for Google Calendar
+
+═══ HOW TO THINK ═══
+
+1. CONTEXT FIRST: Before responding, consider what Jay is actually trying to accomplish. Read between the lines.
+
+2. CONNECT THE DOTS: If Jay asks about revenue, think about staffing. If he mentions Ecuador, think about immigration timeline. If he talks about A2P, think about what it unblocks for WaxOS.
+
+3. BE PROACTIVE: Don't just answer — anticipate. If it's Wednesday and the salon closes at 8pm, mention end-of-day revenue. If August is approaching, flag deadlines. If a decision affects multiple ventures, say so.
+
+4. USE YOUR TOOLS: When data would strengthen your answer, pull it. Don't guess at revenue — check Square. Don't assume pilot status — query Supabase. Don't speculate on trends — search the web.
+
+5. PATTERN RECOGNITION: Track what Jay asks about most. Notice trends in revenue. Flag anomalies. If he keeps asking about the same thing, proactively surface it.
+
+6. STRATEGIC FRAMING: Frame responses in terms of impact on Jay's goals: Ecuador by August, WaxOS growth, Blueprint stability, A2P resolution.
+
+═══ RESPONSE FORMAT ═══
+- This is Telegram — keep responses CONCISE but SUBSTANTIVE
+- Aim for 200-400 characters (can go longer for data-heavy responses)
+- Use line breaks for readability
+- Lead with the answer, then context
+- Include specific numbers, dates, and names when available
+- End with a forward-looking action item when relevant
+
+═══ MEMORY INSTRUCTIONS ═══
+- Reference MEMORY items naturally — don't just list them
+- When Jay states a priority, decision, or important fact, acknowledge it
+- Use stored context to give more relevant, personalized answers
+- When you notice Jay has made a decision, shifted priorities, or flagged something important, note it in your response so it can be tracked
+${memoryContext}`;
 }
 
 /**
- * Check if message is a memory command and handle directly
- * Returns response string if handled, null if not a memory command
+ * Build conversation messages with multi-turn context
+ */
+function buildMessages(userMessage) {
+  const recent = getRecentMessages();
+  const messages = [];
+
+  // Add recent conversation as actual message turns (skip the current message)
+  for (const msg of recent) {
+    if (msg.text === userMessage && msg === recent[recent.length - 1]) continue;
+    messages.push({
+      role: msg.role === "jay" ? "user" : "assistant",
+      content: msg.text
+    });
+  }
+
+  // Ensure proper alternation (Claude requires user/assistant/user/assistant)
+  const cleaned = [];
+  for (let i = 0; i < messages.length; i++) {
+    if (i === 0 && messages[i].role === "assistant") continue; // Skip if starts with assistant
+    if (i > 0 && messages[i].role === messages[i - 1]?.role) continue; // Skip duplicates
+    cleaned.push(messages[i]);
+  }
+
+  // Add current message
+  cleaned.push({ role: "user", content: userMessage });
+
+  return cleaned;
+}
+
+/**
+ * Check if message is a memory command
  */
 function handleMemoryCommand(text) {
   const lower = text.toLowerCase().trim();
 
-  // "remember that ..."
   const rememberMatch = lower.match(/^remember\s+(?:that\s+)?(.+)/);
   if (rememberMatch) {
     const item = text.slice(text.toLowerCase().indexOf(rememberMatch[1]));
@@ -128,18 +209,15 @@ function handleMemoryCommand(text) {
     return `Locked in memory (${result.category}):\n"${item}"`;
   }
 
-  // "forget ..."
   const forgetMatch = lower.match(/^forget\s+(?:about\s+)?(.+)/);
   if (forgetMatch) {
     const query = forgetMatch[1];
     const result = forget(query);
-    if (result.removed > 0) {
-      return `Removed ${result.removed} item(s) matching "${query}" from memory.`;
-    }
-    return `Nothing in memory matching "${query}".`;
+    return result.removed > 0
+      ? `Removed ${result.removed} item(s) matching "${query}" from memory.`
+      : `Nothing in memory matching "${query}".`;
   }
 
-  // "what do you remember" / "show memory" / "memory status"
   if (lower.includes("what do you remember") ||
       lower.includes("show memory") ||
       lower.includes("memory status") ||
@@ -151,16 +229,43 @@ function handleMemoryCommand(text) {
 }
 
 /**
+ * Auto-extract important info from conversation to save to memory
+ */
+async function autoExtractMemory(userMessage, agentResponse) {
+  try {
+    const res = await callClaude({
+      model: "claude-sonnet-4-20250514", // Use Sonnet for speed on extraction
+      max_tokens: 300,
+      system: "You analyze conversations and extract important items to remember. Output ONLY a JSON array of items to save, or an empty array [] if nothing important. Each item: {\"content\": \"...\", \"category\": \"priorities|decisions|flags|notes\"}. Only extract genuinely important business decisions, priorities, deadlines, or action items. Do NOT extract casual chat or questions.",
+      messages: [{
+        role: "user",
+        content: `User said: "${userMessage}"\nAgent replied: "${agentResponse}"\n\nExtract important items to remember (JSON array, or [] if nothing):`
+      }]
+    });
+
+    const text = extractText(res);
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      const items = JSON.parse(match[0]);
+      for (const item of items) {
+        if (item.content && item.content.length > 5) {
+          remember(item.content, item.category || "notes");
+          console.log(`[AUTO-MEMORY] Saved: ${item.content} (${item.category})`);
+        }
+      }
+    }
+  } catch {
+    // Silent fail — auto-extraction is best-effort
+  }
+}
+
+/**
  * Process a message through Claude with tool use
- * @param {string} userMessage - The user's message
- * @param {Function} sendTelegram - Function to send Telegram messages (for reminders)
- * @returns {string} The response text
  */
 export async function processMessage(userMessage, sendTelegram) {
-  // Log user message to memory
   addMessage("jay", userMessage);
 
-  // Check for direct memory commands
+  // Handle direct memory commands
   const memoryResponse = handleMemoryCommand(userMessage);
   if (memoryResponse) {
     addMessage("agent", memoryResponse);
@@ -168,12 +273,14 @@ export async function processMessage(userMessage, sendTelegram) {
   }
 
   try {
+    const messages = buildMessages(userMessage);
+
     const response = await callClaude({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: buildSystemPrompt(),
       tools,
-      messages: [{ role: "user", content: userMessage }]
+      messages
     });
 
     // Handle tool use
@@ -195,7 +302,6 @@ export async function processMessage(userMessage, sendTelegram) {
         let result;
         if (toolUse.name === "send_reminder") {
           result = executor(toolUse.input, sendTelegram);
-          // Track reminder in memory
           if (result.confirmed) {
             trackReminder(result.message, result.time);
           }
@@ -213,11 +319,11 @@ export async function processMessage(userMessage, sendTelegram) {
       // Send tool results back to Claude for final response
       const followUp = await callClaude({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: buildSystemPrompt(),
         tools,
         messages: [
-          { role: "user", content: userMessage },
+          ...messages,
           { role: "assistant", content: response.content },
           { role: "user", content: toolResults }
         ]
@@ -225,11 +331,15 @@ export async function processMessage(userMessage, sendTelegram) {
 
       const text = extractText(followUp);
       addMessage("agent", text);
+      // Auto-extract memory in background
+      autoExtractMemory(userMessage, text);
       return text;
     }
 
     const text = extractText(response);
     addMessage("agent", text);
+    // Auto-extract memory in background
+    autoExtractMemory(userMessage, text);
     return text;
   } catch (err) {
     console.error("[BRAIN ERROR]", err.message);
@@ -243,33 +353,36 @@ export async function processMessage(userMessage, sendTelegram) {
 export async function generateBriefing(type) {
   const prompts = {
     morning: `Generate Jay's morning briefing. Include:
-- Today's date and day of week
+- Today's date, day of week, current time
 - Days until August 1, 2026
-- Key priorities for today (check MEMORY for Jay's current priorities)
-- Any upcoming deadlines (Blueprint Collective Aug 15, Anyssa retiring Aug 2026, Ecuador relocation)
-- Motivational closer
-Keep it punchy. Under 500 chars.`,
+- Top priorities from MEMORY
+- Critical deadlines: Blueprint Collective Aug 15, Anyssa retiring Aug 2026, Ecuador relocation
+- One proactive suggestion based on the day of week
+- Motivational closer — make it personal and sharp
+Under 600 chars. Make every word count.`,
 
-    evening: `Generate Jay's evening wind-down briefing. Include:
-- Quick reflection prompt for the day
-- Tomorrow's top priority (check MEMORY)
+    evening: `Generate Jay's evening wind-down. Include:
+- Day recap framing
+- Tomorrow's top priority from MEMORY
 - Days until August 1, 2026 countdown
-- Reminder to log workout/food/water in Powerhouse app
-Keep it calm but focused. Under 400 chars.`,
+- One thing to reflect on
+- Remind to log in Powerhouse app (workout/food/water)
+Under 400 chars. Calm but focused.`,
 
     weekly: `Generate Jay's Sunday weekly intel briefing. Include:
-- Week in review framing
+- Week in review framing with strategic lens
 - Days until August 1, 2026
-- Key focus areas for the coming week (check MEMORY for priorities)
-- Status check items: WaxOS A2P, Blueprint staffing, Ecuador planning
-- One strategic question to think about
-Under 600 chars.`
+- Top 3 focus areas for the coming week (check MEMORY)
+- Status check: WaxOS A2P, Blueprint staffing, Ecuador planning
+- One strategic question Jay should be thinking about
+- Check MEMORY for any priorities or decisions that affect this week
+Under 700 chars. Think like a chief of staff.`
   };
 
   try {
     const response = await callClaude({
       model: MODEL,
-      max_tokens: 512,
+      max_tokens: 1024,
       system: buildSystemPrompt(),
       messages: [{ role: "user", content: prompts[type] }]
     });
@@ -285,7 +398,6 @@ function extractText(response) {
   if (!response || !response.content) return "Agent couldn't generate a response. Try again.";
   const textBlocks = response.content.filter(b => b.type === "text");
   if (textBlocks.length === 0) {
-    // If Claude only returned tool_use with no text, summarize
     const toolBlocks = response.content.filter(b => b.type === "tool_use");
     if (toolBlocks.length > 0) {
       return "Processing your request — try asking again if you don't see a result.";

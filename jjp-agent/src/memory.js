@@ -58,6 +58,9 @@ export function saveMemory() {
 /**
  * Add a message to recent history (keeps last 10)
  */
+/**
+ * Add a message to recent history (keeps last 10)
+ */
 export function addMessage(role, text) {
   if (!memory) loadMemory();
   memory.recent_messages.push({
@@ -70,6 +73,14 @@ export function addMessage(role, text) {
     memory.recent_messages = memory.recent_messages.slice(-10);
   }
   saveMemory();
+}
+
+/**
+ * Get recent messages for multi-turn context
+ */
+export function getRecentMessages() {
+  if (!memory) loadMemory();
+  return memory.recent_messages;
 }
 
 /**
