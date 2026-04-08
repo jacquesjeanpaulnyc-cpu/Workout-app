@@ -1,0 +1,180 @@
+/**
+ * Claude Brain — Routes messages through Claude with tool use
+ */
+
+import Anthropic from "@anthropic-ai/sdk";
+import { definition as webSearchDef, execute as webSearchExec } from "./tools/web-search.js";
+import { definition as squareRevDef, execute as squareRevExec } from "./tools/square-revenue.js";
+import { definition as reminderDef, execute as reminderExec } from "./tools/send-reminder.js";
+import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/draft-email.js";
+
+const client = new Anthropic();
+
+// Tool registry
+const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef];
+
+const toolExecutors = {
+  web_search: webSearchExec,
+  square_revenue: squareRevExec,
+  send_reminder: reminderExec,
+  draft_email: draftEmailExec
+};
+
+function buildSystemPrompt() {
+  const now = new Date();
+  const today = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  const august1 = new Date(2026, 7, 1); // August 1, 2026
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysToAugust = Math.ceil((august1 - now) / msPerDay);
+
+  return `You are JJP Agent — personal AI chief of staff for Jacques Jean Paul (Jay).
+
+TODAY: ${today}
+DAYS UNTIL AUGUST 1, 2026: ${daysToAugust}
+
+CONTEXT:
+- WaxOS: AI SaaS for wax specialists. FlutterFlow + Supabase + Twilio. Pilot live. Twilio A2P pending — blocks all automation engines.
+- Brazilian Blueprint: waxing salon 206 Smith St Providence RI. Staff Selena and Dallas. Anyssa retiring August 2026. Blueprint Collective launching August 15 2026.
+- Relocation: Ecuador coast by August 2026. I-130/I-485 in process. Always flag immigration attorney before finalizing.
+- Amour et Dualite (@onyxrose): luxury streetwear, paused.
+- Gmail: jacquesjeanpaul.nyc@gmail.com
+- Runs everything solo. AI is his force multiplier.
+
+TOOLS AVAILABLE:
+- web_search: search for current intel
+- square_revenue: pull salon revenue from Square API
+- send_reminder: schedule a reminder to send at a specific time
+- draft_email: create a Gmail draft
+
+RULES:
+- Decide which tool to call based on what Jay says.
+- If no tool needed, respond directly.
+- Keep responses under 300 characters — this is Telegram.
+- Be direct. Sharp. Like a trusted advisor who knows this business cold.
+- When discussing relocation or legal matters, always mention consulting immigration attorney.
+- Reference days until August 2026 when relevant to deadlines.`;
+}
+
+/**
+ * Process a message through Claude with tool use
+ * @param {string} userMessage - The user's message
+ * @param {Function} sendTelegram - Function to send Telegram messages (for reminders)
+ * @returns {string} The response text
+ */
+export async function processMessage(userMessage, sendTelegram) {
+  try {
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
+      system: buildSystemPrompt(),
+      tools,
+      messages: [{ role: "user", content: userMessage }]
+    });
+
+    // Handle tool use
+    if (response.stop_reason === "tool_use") {
+      const toolUseBlocks = response.content.filter(b => b.type === "tool_use");
+      const toolResults = [];
+
+      for (const toolUse of toolUseBlocks) {
+        const executor = toolExecutors[toolUse.name];
+        if (!executor) {
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            content: JSON.stringify({ error: `Unknown tool: ${toolUse.name}` })
+          });
+          continue;
+        }
+
+        let result;
+        if (toolUse.name === "send_reminder") {
+          result = executor(toolUse.input, sendTelegram);
+        } else {
+          result = await executor(toolUse.input);
+        }
+
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: JSON.stringify(result)
+        });
+      }
+
+      // Send tool results back to Claude for final response
+      const followUp = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: buildSystemPrompt(),
+        tools,
+        messages: [
+          { role: "user", content: userMessage },
+          { role: "assistant", content: response.content },
+          { role: "user", content: toolResults }
+        ]
+      });
+
+      return extractText(followUp);
+    }
+
+    return extractText(response);
+  } catch (err) {
+    console.error("[BRAIN ERROR]", err.message);
+    return `Agent error: ${err.message}`;
+  }
+}
+
+/**
+ * Generate a briefing using Claude
+ */
+export async function generateBriefing(type) {
+  const prompts = {
+    morning: `Generate Jay's morning briefing. Include:
+- Today's date and day of week
+- Days until August 1, 2026
+- Key priorities for today
+- Any upcoming deadlines (Blueprint Collective Aug 15, Anyssa retiring Aug 2026, Ecuador relocation)
+- Motivational closer
+Keep it punchy. Under 500 chars.`,
+
+    evening: `Generate Jay's evening wind-down briefing. Include:
+- Quick reflection prompt for the day
+- Tomorrow's top priority
+- Days until August 1, 2026 countdown
+- Reminder to log workout/food/water in Powerhouse app
+Keep it calm but focused. Under 400 chars.`,
+
+    weekly: `Generate Jay's Sunday weekly intel briefing. Include:
+- Week in review framing
+- Days until August 1, 2026
+- Key focus areas for the coming week
+- Status check items: WaxOS A2P, Blueprint staffing, Ecuador planning
+- One strategic question to think about
+Under 600 chars.`
+  };
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 512,
+      system: buildSystemPrompt(),
+      messages: [{ role: "user", content: prompts[type] }]
+    });
+
+    return extractText(response);
+  } catch (err) {
+    console.error("[BRIEFING ERROR]", err.message);
+    return `Briefing generation failed: ${err.message}`;
+  }
+}
+
+function extractText(response) {
+  const textBlocks = response.content.filter(b => b.type === "text");
+  return textBlocks.map(b => b.text).join("\n") || "No response generated.";
+}
