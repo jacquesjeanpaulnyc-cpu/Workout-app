@@ -1,8 +1,9 @@
 /**
  * Claude Brain — Routes messages through Claude with tool use
- * Uses direct fetch to Anthropic API for maximum compatibility.
+ * Uses undici fetch with proxy support for compatibility.
  */
 
+import { fetch as undiciFetch, ProxyAgent } from "undici";
 import { definition as webSearchDef, execute as webSearchExec } from "./tools/web-search.js";
 import { definition as squareRevDef, execute as squareRevExec } from "./tools/square-revenue.js";
 import { definition as reminderDef, execute as reminderExec } from "./tools/send-reminder.js";
@@ -10,6 +11,10 @@ import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-sonnet-4-20250514";
+
+// Proxy setup — use HTTPS_PROXY if available
+const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
 // Tool registry
 const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef];
@@ -22,14 +27,15 @@ const toolExecutors = {
 };
 
 async function callClaude(body) {
-  const res = await fetch(API_URL, {
+  const res = await undiciFetch(API_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-api-key": process.env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    ...(dispatcher ? { dispatcher } : {})
   });
 
   if (!res.ok) {

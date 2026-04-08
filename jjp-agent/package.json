@@ -10,9 +10,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "node-telegram-bot-api": "^0.66.0",
-    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.7",
     "googleapis": "^144.0.0",
-    "dotenv": "^16.4.7"
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "undici": "^8.0.2"
   }
 }
