@@ -8,6 +8,7 @@ import { definition as webSearchDef, execute as webSearchExec } from "./tools/we
 import { definition as squareRevDef, execute as squareRevExec } from "./tools/square-revenue.js";
 import { definition as reminderDef, execute as reminderExec } from "./tools/send-reminder.js";
 import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/draft-email.js";
+import { definition as supabaseDef, execute as supabaseExec } from "./tools/supabase-query.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-sonnet-4-20250514";
@@ -17,13 +18,14 @@ const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.e
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
 // Tool registry
-const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef];
+const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef];
 
 const toolExecutors = {
   web_search: webSearchExec,
   square_revenue: squareRevExec,
   send_reminder: reminderExec,
-  draft_email: draftEmailExec
+  draft_email: draftEmailExec,
+  supabase_query: supabaseExec
 };
 
 async function callClaude(body) {
@@ -77,6 +79,7 @@ TOOLS AVAILABLE:
 - square_revenue: pull salon revenue from Square API
 - send_reminder: schedule a reminder to send at a specific time
 - draft_email: create a Gmail draft
+- supabase_query: pull WaxOS pilot data — appointments, clients, specialists (Anyssa/Selena/Dallas), no-shows, reactivation campaigns. Use query_type "pilot_summary" for a full overview.
 
 RULES:
 - Decide which tool to call based on what Jay says.
