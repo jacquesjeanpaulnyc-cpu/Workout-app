@@ -17,6 +17,8 @@ import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/
 import { definition as supabaseDef, execute as supabaseExec } from "./tools/supabase-query.js";
 import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
 import { definition as reactivationDef, execute as reactivationExec } from "./tools/reactivation-engine.js";
+import { getTodayEvents } from "./calendar-intel.js";
+import { fullEmailScan } from "./gmail-triage.js";
 import {
   initMemory, addMessage, remember, forget, getMemoryContext,
   getMemorySummary, trackReminder, getRecentMessages, autoSave, search
@@ -245,6 +247,37 @@ function handleMemoryCommand(text) {
       if (!results.length) return `Nothing in memory about "${aboutMatch[1]}".`;
       const items = results.map(m => `• ${m.memory || m.content || m.text}`).join("\n");
       return `Memories about "${aboutMatch[1]}":\n${items}`;
+    })();
+  }
+
+  // "check email" / "scan email" / "check inbox"
+  if (lower.includes("check email") || lower.includes("scan email") ||
+      lower.includes("check inbox") || lower.includes("scan inbox")) {
+    return (async () => {
+      const result = await fullEmailScan();
+      if (result.error) return result.error;
+      if (!result.top_emails || result.top_emails.length === 0) return "📬 Inbox clear. Nothing in the last 24 hours.";
+      const lines = [`📬 ${result.summary}`];
+      result.top_emails.forEach((e, i) => {
+        const flag = e.priority ? "🔴" : "⚪";
+        lines.push(`  ${flag} ${i+1}. ${e.from} — ${e.subject}`);
+      });
+      return lines.join("\n");
+    })();
+  }
+
+  // "check calendar" / "what's on my calendar" / "my schedule"
+  if (lower.includes("check calendar") || lower.includes("my schedule") ||
+      lower.includes("what's on my calendar") || lower.includes("whats on my calendar")) {
+    return (async () => {
+      const { events } = await getTodayEvents();
+      if (events.length === 0) return "📅 Nothing on the calendar today. Full build day.";
+      const lines = [`📅 Today (${events.length} events):`];
+      events.forEach(e => {
+        const time = e.endTime ? `${e.startTime}–${e.endTime}` : e.startTime;
+        lines.push(`  • ${time}: ${e.title}`);
+      });
+      return lines.join("\n");
     })();
   }
 

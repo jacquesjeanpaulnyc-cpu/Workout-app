@@ -9,6 +9,8 @@ import cron from "node-cron";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { getCalendarBriefing } from "./calendar-intel.js";
+import { getEmailBriefing } from "./gmail-triage.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -73,6 +75,21 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
 
   const config = prompts[type];
 
+  // For morning briefing, pull calendar and email data
+  let calendarSection = "";
+  let emailSection = "";
+
+  if (type === "morning") {
+    try {
+      [calendarSection, emailSection] = await Promise.all([
+        getCalendarBriefing(),
+        getEmailBriefing()
+      ]);
+    } catch (err) {
+      console.error("[BRIEFING] Calendar/Email pull failed:", err.message);
+    }
+  }
+
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -93,7 +110,12 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
     const data = await res.json();
     const text = data.content?.find(b => b.type === "text")?.text || "Briefing failed.";
 
-    await sendToOwner(`${config.emoji} ${config.label}\n\n${text}`);
+    // Assemble full briefing with calendar + email sections
+    let fullBriefing = `${config.emoji} ${config.label}\n\n${text}`;
+    if (calendarSection) fullBriefing += `\n\n${calendarSection}`;
+    if (emailSection) fullBriefing += `\n\n${emailSection}`;
+
+    await sendToOwner(fullBriefing);
     console.log(`[BRIEFING] ${type} sent.`);
   } catch (err) {
     console.error(`[BRIEFING] ${type} failed:`, err.message);
