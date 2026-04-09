@@ -11,6 +11,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { getCalendarBriefing } from "./calendar-intel.js";
 import { getEmailBriefing } from "./gmail-triage.js";
+import { execute as staffExecute } from "./tools/staff-tracker.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,6 +79,7 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
   // For morning briefing, pull calendar and email data
   let calendarSection = "";
   let emailSection = "";
+  let staffSection = "";
 
   if (type === "morning") {
     try {
@@ -87,6 +89,24 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
       ]);
     } catch (err) {
       console.error("[BRIEFING] Calendar/Email pull failed:", err.message);
+    }
+  }
+
+  // For weekly briefing, pull staff performance
+  if (type === "weekly") {
+    try {
+      const staffData = await staffExecute({ action: "overview", days: 7 });
+      if (staffData && staffData.staff) {
+        const lines = [`👥 Staff Performance (7 days):`];
+        lines.push(`Total revenue: ${staffData.total_revenue} | ${staffData.total_orders} orders`);
+        for (const s of staffData.staff) {
+          lines.push(`  • ${s.name}: ${s.bookings} bookings (${s.share}) | ${s.est_revenue} rev | ${s.cancelled} cancelled | ${s.no_shows} no-shows`);
+        }
+        if (staffData.insight) lines.push(staffData.insight);
+        staffSection = lines.join("\n");
+      }
+    } catch (err) {
+      console.error("[BRIEFING] Staff pull failed:", err.message);
     }
   }
 
@@ -114,6 +134,7 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
     let fullBriefing = `${config.emoji} ${config.label}\n\n${text}`;
     if (calendarSection) fullBriefing += `\n\n${calendarSection}`;
     if (emailSection) fullBriefing += `\n\n${emailSection}`;
+    if (staffSection) fullBriefing += `\n\n${staffSection}`;
 
     await sendToOwner(fullBriefing);
     console.log(`[BRIEFING] ${type} sent.`);
