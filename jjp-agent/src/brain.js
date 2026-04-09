@@ -332,6 +332,28 @@ export async function processMessage(userMessage, sendTelegram) {
           if (result.confirmed) {
             trackReminder(result.message, result.time);
           }
+        } else if (toolUse.name === "reactivation_engine" && toolUse.input?.action === "draft") {
+          // Reactivation drafts: send progress update, run tool, send results directly
+          sendTelegram("📝 Generating drafts... this takes 10-30 seconds per batch of 10.");
+          result = await executor(toolUse.input);
+          // Send drafts directly to Telegram (too large for Claude follow-up)
+          if (result.drafts && result.drafts.length > 0) {
+            const chunks = [];
+            let chunk = `✅ ${result.count} reactivation drafts ready (${result.tone} tone):\n\n`;
+            for (const draft of result.drafts) {
+              if ((chunk + draft + "\n\n").length > 3500) {
+                chunks.push(chunk);
+                chunk = "";
+              }
+              chunk += draft + "\n\n";
+            }
+            if (chunk) chunks.push(chunk);
+            for (const c of chunks) {
+              await sendTelegram(c);
+            }
+            // Return short summary to Claude
+            result = { count: result.count, status: result.status, note: "Drafts already sent to Telegram." };
+          }
         } else {
           result = await executor(toolUse.input);
         }
