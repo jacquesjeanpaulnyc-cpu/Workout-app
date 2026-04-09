@@ -9,6 +9,7 @@ import "dotenv/config";
 import { startBot, sendToOwner } from "./bot.js";
 import { startBriefings } from "./briefings.js";
 import { startSalonMonitor } from "./salon-monitor-cron.js";
+import { startA2PWatcher } from "./a2p-watcher.js";
 
 console.log("╔══════════════════════════════════════╗");
 console.log("║       JJP AGENT — INTEL ONLINE       ║");
@@ -38,6 +39,9 @@ startBriefings(sendToOwner);
 
 // Start salon revenue monitor (cron-based, runs in-process)
 startSalonMonitor(sendToOwner);
+
+// Start Twilio A2P status watcher (every 6 hours)
+startA2PWatcher(sendToOwner);
 
 // Keep process alive
 process.on("SIGINT", () => {
