@@ -151,32 +151,43 @@ async function draftMessages(segment, limit, promo, tone) {
 
   const promoLine = promo ? `Include this offer: ${promo}` : "No specific promo — just a warm win-back.";
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  const allDrafts = [];
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: `Draft personalized win-back SMS for ${withPhone.length} REAL lapsed waxing salon clients.
+  // Process in chunks of 10 to avoid token limits and overload errors
+  const CHUNK_SIZE = 10;
+  for (let i = 0; i < withPhone.length; i += CHUNK_SIZE) {
+    const chunk = withPhone.slice(i, i + CHUNK_SIZE);
 
-SALON: Brazilian Blueprint (Providence RI)
+    // Retry up to 2 times on overload
+    let attempts = 0;
+    let text = "";
+    while (attempts < 3) {
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 4096,
+            messages: [{
+              role: "user",
+              content: `Draft personalized win-back SMS for ${chunk.length} lapsed waxing salon clients.
+
+SALON: Brazilian Blueprint (Providence RI) — www.brazilianblueprint.com
 TONE: ${toneGuide[tone]}
 PROMO: ${promoLine}
 
 CLIENTS:
-${withPhone.map((c, i) => `${i+1}. ${c.first_name} ${c.last_name} — ${c.phone}`).join("\n")}
+${chunk.map((c, j) => `${j+1}. ${c.first_name} ${c.last_name} — ${c.phone}`).join("\n")}
 
 RULES:
 - Start with first name
 - Under 160 chars (SMS limit)
-- Include "Brazilian Blueprint" or "Blueprint"
+- Include booking link www.brazilianblueprint.com
 - Call to action at the end
 - Max one emoji
 - Human, not corporate
@@ -189,43 +200,57 @@ PHONE: [phone]
 SMS: [message]
 ---
 
-Output ALL ${withPhone.length} messages.`
-      }]
-    })
-  });
+Output ALL ${chunk.length} messages.`
+            }]
+          })
+        });
 
-  if (!res.ok) throw new Error(`Claude API ${res.status}`);
-  const data = await res.json();
-  const text = data.content?.find(b => b.type === "text")?.text || "";
+        if (res.status === 529) {
+          attempts++;
+          await new Promise(r => setTimeout(r, 3000 * attempts)); // Wait 3s, 6s, 9s
+          continue;
+        }
+        if (!res.ok) throw new Error(`Claude API ${res.status}`);
 
-  const drafts = [];
-  const blocks = text.split("---").filter(b => b.trim());
-  for (const block of blocks) {
-    const nameMatch = block.match(/NAME:\s*(.+)/i);
-    const phoneMatch = block.match(/PHONE:\s*(.+)/i);
-    const smsMatch = block.match(/SMS:\s*(.+)/i);
-    if (smsMatch) {
-      drafts.push({
-        name: nameMatch ? nameMatch[1].trim() : "Unknown",
-        phone: phoneMatch ? phoneMatch[1].trim() : "",
-        sms: smsMatch[1].trim(),
-        chars: smsMatch[1].trim().length
-      });
+        const data = await res.json();
+        text = data.content?.find(b => b.type === "text")?.text || "";
+        break;
+      } catch (err) {
+        attempts++;
+        if (attempts >= 3) throw err;
+        await new Promise(r => setTimeout(r, 3000 * attempts));
+      }
+    }
+
+    // Parse drafts from this chunk
+    const blocks = text.split("---").filter(b => b.trim());
+    for (const block of blocks) {
+      const nameMatch = block.match(/NAME:\s*(.+)/i);
+      const phoneMatch = block.match(/PHONE:\s*(.+)/i);
+      const smsMatch = block.match(/SMS:\s*(.+)/i);
+      if (smsMatch) {
+        allDrafts.push({
+          name: nameMatch ? nameMatch[1].trim() : "Unknown",
+          phone: phoneMatch ? phoneMatch[1].trim() : "",
+          sms: smsMatch[1].trim(),
+          chars: smsMatch[1].trim().length
+        });
+      }
     }
   }
 
   // Save drafts to file for export
   const exportPath = join(__dirname, "..", "reactivation-drafts.json");
-  writeFileSync(exportPath, JSON.stringify(drafts, null, 2), "utf-8");
+  writeFileSync(exportPath, JSON.stringify(allDrafts, null, 2), "utf-8");
 
   return {
     source: "Square (verified)",
     segment,
-    count: drafts.length,
+    count: allDrafts.length,
     tone,
     promo: promo || "none",
-    drafts: drafts.map(d => `${d.name} (${d.phone}):\n"${d.sms}" [${d.chars} chars]`),
-    status: "DRAFTED — saved to reactivation-drafts.json. Use 'export' to get CSV.",
+    drafts: allDrafts.map(d => `${d.name} (${d.phone}):\n"${d.sms}" [${d.chars} chars]`),
+    status: `DRAFTED — ${allDrafts.length} messages saved. Use 'export' to get CSV.`,
     note: "Say 'export reactivation drafts' to get a CSV file in Telegram."
   };
 }
