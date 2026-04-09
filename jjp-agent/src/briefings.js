@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import { getCalendarBriefing } from "./calendar-intel.js";
 import { getEmailBriefing } from "./gmail-triage.js";
 import { execute as staffExecute } from "./tools/staff-tracker.js";
+import { getMorningSalonBrief, getMiddayPulse, getEODEnriched } from "./salon-intel.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -81,14 +82,17 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
   let emailSection = "";
   let staffSection = "";
 
+  let salonSection = "";
+
   if (type === "morning") {
     try {
-      [calendarSection, emailSection] = await Promise.all([
+      [calendarSection, emailSection, salonSection] = await Promise.all([
         getCalendarBriefing(),
-        getEmailBriefing()
+        getEmailBriefing(),
+        getMorningSalonBrief()
       ]);
     } catch (err) {
-      console.error("[BRIEFING] Calendar/Email pull failed:", err.message);
+      console.error("[BRIEFING] Morning data pull failed:", err.message);
     }
   }
 
@@ -132,6 +136,7 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
 
     // Assemble full briefing with calendar + email sections
     let fullBriefing = `${config.emoji} ${config.label}\n\n${text}`;
+    if (salonSection) fullBriefing += `\n\n${salonSection}`;
     if (calendarSection) fullBriefing += `\n\n${calendarSection}`;
     if (emailSection) fullBriefing += `\n\n${emailSection}`;
     if (staffSection) fullBriefing += `\n\n${staffSection}`;
@@ -152,6 +157,18 @@ export function startBriefings(sendToOwner) {
   // 5:30 AM ET daily
   cron.schedule("30 5 * * *", () => sendBriefing("morning", sendToOwner), { timezone: "America/New_York" });
 
+  // 12:00 PM ET midday pulse (salon days only: Mon,Tue,Wed,Fri,Sat)
+  cron.schedule("0 12 * * 1,2,3,5,6", async () => {
+    console.log("[BRIEFING] Sending midday pulse...");
+    try {
+      const pulse = await getMiddayPulse();
+      if (pulse) await sendToOwner(pulse);
+      console.log("[BRIEFING] Midday pulse sent.");
+    } catch (err) {
+      console.error("[BRIEFING] Midday pulse failed:", err.message);
+    }
+  }, { timezone: "America/New_York" });
+
   // 8:00 PM ET daily
   cron.schedule("0 20 * * *", () => sendBriefing("evening", sendToOwner), { timezone: "America/New_York" });
 
@@ -159,7 +176,8 @@ export function startBriefings(sendToOwner) {
   cron.schedule("0 7 * * 0", () => sendBriefing("weekly", sendToOwner), { timezone: "America/New_York" });
 
   console.log("[BRIEFINGS] All briefings scheduled:");
-  console.log("  - 5:30 AM ET daily → Morning brief");
+  console.log("  - 5:30 AM ET daily → Morning brief (calendar + email + salon)");
+  console.log("  - 12:00 PM ET salon days → Midday pulse");
   console.log("  - 8:00 PM ET daily → Evening wind-down");
-  console.log("  - 7:00 AM ET Sunday → Weekly intel");
+  console.log("  - 7:00 AM ET Sunday → Weekly intel (+ staff performance)");
 }

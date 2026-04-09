@@ -9,31 +9,73 @@ import cron from "node-cron";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { getEODEnriched } from "./salon-intel.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ALERT_LOG_PATH = join(__dirname, "..", "salon-alerts.json");
 
-// ── Alert deduplication ──
+// ── Alert deduplication (in-memory, resets on deploy/restart) ──
+
+// In-memory dedup — survives within process, resets daily
+let alertLog = { date: "", fired: [] };
 
 function loadAlertLog() {
+  const today = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
+  if (alertLog.date !== today) {
+    alertLog = { date: today, fired: [] };
+  }
+  // Also try disk as backup
   try {
     if (existsSync(ALERT_LOG_PATH)) {
       const data = JSON.parse(readFileSync(ALERT_LOG_PATH, "utf-8"));
-      const today = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
-      if (data.date !== today) return { date: today, fired: [] };
-      return data;
+      if (data.date === today) {
+        // Merge disk alerts into memory
+        for (const id of (data.fired || [])) {
+          if (!alertLog.fired.includes(id)) alertLog.fired.push(id);
+        }
+      }
     }
   } catch {}
-  return { date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }), fired: [] };
+  return alertLog;
 }
 
 function saveAlertLog(log) {
+  alertLog = log;
   try { writeFileSync(ALERT_LOG_PATH, JSON.stringify(log, null, 2), "utf-8"); } catch {}
 }
 
 function hasAlertFired(log, id) { return log.fired.includes(id); }
 function markAlertFired(log, id) {
   if (!log.fired.includes(id)) { log.fired.push(id); saveAlertLog(log); }
+}
+
+// ── Salon business hours (from Square location data) ──
+// Mon: 10:00-13:30, 17:00-20:00
+// Tue: 16:00-20:00
+// Wed: 09:00-12:20, 17:00-20:00
+// Thu: CLOSED
+// Fri: 09:00-14:00
+// Sat: 09:00-13:00
+// Sun: CLOSED
+
+const SALON_HOURS = {
+  0: null,                          // Sunday — CLOSED
+  1: [{ open: 10, close: 20 }],    // Monday
+  2: [{ open: 16, close: 20 }],    // Tuesday
+  3: [{ open: 9, close: 20 }],     // Wednesday
+  4: null,                          // Thursday — CLOSED
+  5: [{ open: 9, close: 14 }],     // Friday
+  6: [{ open: 9, close: 13 }]      // Saturday
+};
+
+function isSalonOpen(dayOfWeek, hour) {
+  const hours = SALON_HOURS[dayOfWeek];
+  if (!hours) return false;
+  return hours.some(h => hour >= h.open && hour < h.close);
+}
+
+function isSalonDay(dayOfWeek) {
+  return SALON_HOURS[dayOfWeek] !== null;
 }
 
 // ── Square API ──
@@ -80,7 +122,18 @@ async function runCheck(sendToOwner) {
   const dayOfWeek = et.getDay();
   const dateStr = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-  if (hour < 9 || hour >= 20) return; // Outside salon hours
+  // Skip if salon is closed today
+  if (!isSalonDay(dayOfWeek)) {
+    console.log(`[MONITOR] Salon closed today (${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dayOfWeek]}). Skipping.`);
+    return;
+  }
+
+  // Skip if outside salon hours
+  if (!isSalonOpen(dayOfWeek, hour)) {
+    console.log(`[MONITOR] Outside salon hours. Skipping.`);
+    // But still allow EOD summary at 7 PM and weekly at 6 PM Sunday
+    if (!(hour === 19 || (dayOfWeek === 0 && hour >= 18))) return;
+  }
 
   const log = loadAlertLog();
   const orders = await getOrdersForDate(dateStr);
@@ -88,7 +141,7 @@ async function runCheck(sendToOwner) {
 
   console.log(`[MONITOR] ${dateStr} ${hour}:00 — $${rev.dollars} (${rev.count} orders)`);
 
-  // Milestones
+  // Milestones (only on salon days)
   if (rev.cents >= 150000 && !hasAlertFired(log, "m1500")) {
     await sendToOwner(`💈 Blueprint at $${rev.dollars} today 👑 Top day.`);
     markAlertFired(log, "m1500");
@@ -100,9 +153,12 @@ async function runCheck(sendToOwner) {
     markAlertFired(log, "m500");
   }
 
-  // Slow day
-  if (hour >= 14 && rev.cents < 20000 && !hasAlertFired(log, "slow")) {
-    await sendToOwner(`💈 Slow day at Blueprint. Only $${rev.dollars} so far. Consider a same-day promo push.`);
+  // Slow day — ONLY if salon is actually open AND has been open for a while
+  if (isSalonOpen(dayOfWeek, hour) && hour >= 14 && rev.cents < 20000 && rev.cents >= 0 && !hasAlertFired(log, "slow")) {
+    // Don't alert $0 — that usually means closed or system error
+    if (rev.count > 0 || hour >= 16) {
+      await sendToOwner(`💈 Slow day at Blueprint. $${rev.dollars} so far (${rev.count} services). Consider a same-day promo push.`);
+    }
     markAlertFired(log, "slow");
   }
 
