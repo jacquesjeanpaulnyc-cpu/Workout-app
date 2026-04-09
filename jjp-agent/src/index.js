@@ -1,12 +1,14 @@
 /**
  * JJP Agent — Personal AI Chief of Staff
  *
- * Entry point. Starts Telegram bot + briefing schedules.
+ * Entry point. Starts Telegram bot + briefing schedules + salon monitor.
+ * Designed to run on Railway (cloud) — everything in one process.
  */
 
 import "dotenv/config";
-import { startBot } from "./bot.js";
+import { startBot, sendToOwner } from "./bot.js";
 import { startBriefings } from "./briefings.js";
+import { startSalonMonitor } from "./salon-monitor-cron.js";
 
 console.log("╔══════════════════════════════════════╗");
 console.log("║       JJP AGENT — INTEL ONLINE       ║");
@@ -31,8 +33,11 @@ if (!process.env.TELEGRAM_OWNER_ID) {
 // Start Telegram bot (polling)
 startBot();
 
-// Start scheduled briefings
-startBriefings();
+// Start scheduled briefings (cron-based, runs in-process)
+startBriefings(sendToOwner);
+
+// Start salon revenue monitor (cron-based, runs in-process)
+startSalonMonitor(sendToOwner);
 
 // Keep process alive
 process.on("SIGINT", () => {

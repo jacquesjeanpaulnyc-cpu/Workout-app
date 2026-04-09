@@ -1,22 +1,122 @@
 /**
- * Briefings — Now handled by launchd (external to agent process)
+ * Briefings — Scheduled via node-cron inside the agent process
  *
- * The 3 briefing schedules run via macOS launchd plists:
- *   com.jjp.briefing.morning  → 5:30 AM daily
- *   com.jjp.briefing.evening  → 8:00 PM daily
- *   com.jjp.briefing.sunday   → 7:00 AM Sunday
- *
- * Each plist triggers: node src/briefing-standalone.js <type>
- * This runs independently of the main agent — survives restarts,
- * Mac sleep, and agent crashes.
- *
- * Setup: bash setup-briefings.sh
+ * On cloud (Railway): cron jobs run inside the process
+ * On Mac: can also use launchd plists as backup (setup-briefings.sh)
  */
 
-export function startBriefings() {
-  console.log("[BRIEFINGS] Briefings run via launchd (independent of agent):");
+import cron from "node-cron";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+async function sendBriefing(type, sendToOwner) {
+  const envPath = join(__dirname, "..", ".env");
+  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+  const MEM0_KEY = process.env.MEM0_API_KEY;
+
+  const now = new Date();
+  const today = now.toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    timeZone: "America/New_York"
+  });
+  const currentTime = now.toLocaleTimeString("en-US", {
+    hour: "numeric", minute: "2-digit", timeZone: "America/New_York"
+  });
+  const august1 = new Date(2026, 7, 1);
+  const daysToAugust = Math.ceil((august1 - now) / (1000 * 60 * 60 * 24));
+
+  // Get memories
+  let memories = "";
+  if (MEM0_KEY) {
+    try {
+      const res = await fetch("https://api.mem0.ai/v1/memories/search/", {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${MEM0_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          query: "priorities decisions blockers deadlines",
+          user_id: "jay_jjp",
+          limit: 8
+        })
+      });
+      const data = await res.json();
+      const items = (data.results || data || []);
+      if (items.length) {
+        memories = "\n\nMEMORIES:\n" + items.map(m => `- ${m.memory || m.content}`).join("\n");
+      }
+    } catch {}
+  }
+
+  const system = `You are JJP Agent — personal AI chief of staff for Jacques Jean Paul (Jay).
+TODAY: ${today} | ${currentTime} ET | ${daysToAugust} days until August 1, 2026
+CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Selena/Dallas/Anyssa retiring Aug), Ecuador relocation by Aug 2026, Blueprint Collective launching Aug 15.${memories}`;
+
+  const prompts = {
+    morning: {
+      emoji: "☀️", label: "MORNING BRIEF",
+      prompt: `Morning briefing for Jay. Date: ${today}. ${daysToAugust} days to August. Include top priorities from MEMORIES, critical deadlines, one proactive suggestion, motivational closer. Under 600 chars.`
+    },
+    evening: {
+      emoji: "🌙", label: "EVENING WIND-DOWN",
+      prompt: `Evening wind-down for Jay. Reflection prompt, tomorrow's priority from MEMORIES, ${daysToAugust} days countdown, remind to log in Powerhouse app. Under 400 chars.`
+    },
+    weekly: {
+      emoji: "📊", label: "WEEKLY INTEL — SUNDAY",
+      prompt: `Sunday weekly intel for Jay. Strategic week review, ${daysToAugust} days to August, top 3 focus areas from MEMORIES, status checks (A2P, staffing, Ecuador), one strategic question. Under 700 chars.`
+    }
+  };
+
+  const config = prompts[type];
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-20250514",
+        max_tokens: 1024,
+        system,
+        messages: [{ role: "user", content: config.prompt }]
+      })
+    });
+
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data = await res.json();
+    const text = data.content?.find(b => b.type === "text")?.text || "Briefing failed.";
+
+    await sendToOwner(`${config.emoji} ${config.label}\n\n${text}`);
+    console.log(`[BRIEFING] ${type} sent.`);
+  } catch (err) {
+    console.error(`[BRIEFING] ${type} failed:`, err.message);
+    try {
+      await sendToOwner(`⚠️ ${config.label} failed: ${err.message}`);
+    } catch {}
+  }
+}
+
+export function startBriefings(sendToOwner) {
+  console.log("[BRIEFINGS] Scheduling briefings via cron...");
+
+  // 5:30 AM ET daily
+  cron.schedule("30 5 * * *", () => sendBriefing("morning", sendToOwner), { timezone: "America/New_York" });
+
+  // 8:00 PM ET daily
+  cron.schedule("0 20 * * *", () => sendBriefing("evening", sendToOwner), { timezone: "America/New_York" });
+
+  // 7:00 AM ET Sunday
+  cron.schedule("0 7 * * 0", () => sendBriefing("weekly", sendToOwner), { timezone: "America/New_York" });
+
+  console.log("[BRIEFINGS] All briefings scheduled:");
   console.log("  - 5:30 AM ET daily → Morning brief");
   console.log("  - 8:00 PM ET daily → Evening wind-down");
   console.log("  - 7:00 AM ET Sunday → Weekly intel");
-  console.log("[BRIEFINGS] Run 'bash setup-briefings.sh' if not yet configured.");
 }
