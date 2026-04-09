@@ -13,6 +13,7 @@ import { getCalendarBriefing } from "./calendar-intel.js";
 import { getEmailBriefing } from "./gmail-triage.js";
 import { execute as staffExecute } from "./tools/staff-tracker.js";
 import { getMorningSalonBrief, getMiddayPulse, getEODEnriched } from "./salon-intel.js";
+import { getEmailIntelResults } from "./autonomous-monitors.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -86,11 +87,22 @@ CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Sel
 
   if (type === "morning") {
     try {
-      [calendarSection, emailSection, salonSection] = await Promise.all([
+      [calendarSection, salonSection] = await Promise.all([
         getCalendarBriefing(),
-        getEmailBriefing(),
         getMorningSalonBrief()
       ]);
+
+      // Use pre-scanned email results from Monitor 3 (ran at 5:25 AM)
+      const emailIntel = getEmailIntelResults();
+      if (emailIntel && emailIntel.length > 0) {
+        const lines = [`📬 ${emailIntel.length} flagged email(s):`];
+        emailIntel.forEach((e, i) => {
+          const flag = e.reason === "urgent" ? "🔴" : e.reason === "lead" ? "🟢" : "🔵";
+          lines.push(`  ${flag} ${e.from.split("<")[0].trim()} — ${e.subject}`);
+        });
+        emailSection = lines.join("\n");
+      }
+      // If no flagged emails, emailSection stays empty — no section shown
     } catch (err) {
       console.error("[BRIEFING] Morning data pull failed:", err.message);
     }

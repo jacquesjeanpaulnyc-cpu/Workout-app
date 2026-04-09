@@ -13,6 +13,7 @@ import { startSalonMonitor } from "./salon-monitor-cron.js";
 import { startA2PWatcher } from "./a2p-watcher.js";
 import { startCalendarAlerts } from "./calendar-intel.js";
 import { getDailyCost } from "./brain.js";
+import { startAutonomousMonitors } from "./autonomous-monitors.js";
 
 console.log("╔══════════════════════════════════════╗");
 console.log("║       JJP AGENT — INTEL ONLINE       ║");
@@ -51,6 +52,9 @@ startA2PWatcher(sendToOwner);
 
 // Start calendar event alerts (15-min warnings)
 startCalendarAlerts(sendToOwner);
+
+// Start autonomous monitors (7 independent intelligence systems)
+startAutonomousMonitors(sendToOwner);
 
 // ── Health Check HTTP Server ──
 // Railway uses this to verify the service is alive

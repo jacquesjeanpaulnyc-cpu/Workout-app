@@ -20,6 +20,7 @@ import { definition as reactivationDef, execute as reactivationExec } from "./to
 import { definition as staffDef, execute as staffExec } from "./tools/staff-tracker.js";
 import { getTodayEvents } from "./calendar-intel.js";
 import { fullEmailScan } from "./gmail-triage.js";
+import { detectDecisionLanguage } from "./autonomous-monitors.js";
 import {
   initMemory, addMessage, remember, forget, getMemoryContext,
   getMemorySummary, trackReminder, getRecentMessages, autoSave, search
@@ -341,6 +342,12 @@ function handleMemoryCommand(text) {
  */
 export async function processMessage(userMessage, sendTelegram) {
   addMessage("jay", userMessage);
+
+  // Detect decision language and save to Mem0
+  if (detectDecisionLanguage(userMessage)) {
+    remember(`Open decision: ${userMessage}`).catch(() => {});
+    console.log("[BRAIN] Decision language detected, saved to Mem0");
+  }
 
   // Handle direct memory commands
   const memoryResponse = handleMemoryCommand(userMessage);
