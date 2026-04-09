@@ -212,6 +212,24 @@ export function sendToOwner(text) {
   return sendMessage(ownerId, text);
 }
 
+/**
+ * Send a file to the owner via Telegram
+ */
+export function sendFileToOwner(filePath) {
+  if (!bot || !ownerId) return;
+  const { createReadStream } = require ? undefined : undefined;
+  return bot.sendDocument(ownerId, filePath);
+}
+
+// Expose sendFile globally for tools to use
+global.__sendFile = (filePath) => {
+  if (bot && ownerId) {
+    bot.sendDocument(ownerId, filePath).catch(err => {
+      console.error("[BOT] Failed to send file:", err.message);
+    });
+  }
+};
+
 function splitMessage(text, maxLen) {
   const chunks = [];
   let remaining = text;

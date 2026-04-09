@@ -336,6 +336,15 @@ export async function processMessage(userMessage, sendTelegram) {
           result = await executor(toolUse.input);
         }
 
+        // If tool returns a file to send, queue it
+        if (result && result.send_file) {
+          sendTelegram(`📎 Sending file: ${result.summary || "export ready"}`);
+          // Send file via global sendFile function
+          if (global.__sendFile) {
+            global.__sendFile(result.send_file);
+          }
+        }
+
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,
