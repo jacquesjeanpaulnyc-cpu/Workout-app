@@ -128,68 +128,109 @@ async function getTargets(limit) {
 }
 
 async function draftMessages(limit, promo, tone) {
-  // Get targets
   const result = await supabaseGet(
     `clients?select=id,first_name,last_name,phone,created_at&is_inactive=eq.true&sms_opt_in=eq.true&order=created_at.desc&limit=${limit}`
   );
 
-  // Get service catalog for personalization
+  if (!result.data.length) return { error: "No inactive clients found." };
+
   const services = await supabaseGet(
     "service_templates?select=name,default_price,category&is_active=eq.true&limit=10"
   );
-
   const serviceNames = services.data.map(s => `${s.name} ($${s.default_price})`).join(", ");
 
   const toneGuide = {
-    warm: "Warm, friendly, like texting a regular who you miss. Personal touch.",
-    urgent: "Create urgency — limited time, spots filling up. Direct but not pushy.",
-    exclusive: "VIP treatment — make them feel special, insider access, loyalty reward.",
-    casual: "Super casual, like a friend checking in. Light, easy, no pressure."
+    warm: "Warm, friendly, like texting a regular who you miss.",
+    urgent: "Create urgency — limited time, spots filling up.",
+    exclusive: "VIP treatment — make them feel special.",
+    casual: "Super casual, like a friend checking in."
   };
 
-  // Use Claude to draft personalized messages
-  const drafts = [];
+  const clientList = result.data.map(c => c.first_name).join(", ");
+  const promoLine = promo ? `Include this offer: ${promo}` : "No specific promo — just a warm win-back.";
 
-  for (const client of result.data) {
-    const firstName = client.first_name;
-    const promoLine = promo ? `\nInclude this offer: ${promo}` : "";
+  // One batch call to Claude for ALL messages
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { error: "ANTHROPIC_API_KEY not set" };
 
-    const prompt = `Draft a SHORT win-back SMS (under 160 chars) for a waxing salon client.
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        messages: [{
+          role: "user",
+          content: `Draft personalized win-back SMS messages for these ${result.data.length} inactive waxing salon clients.
 
-Client name: ${firstName}
-Salon: Brazilian Blueprint
-Tone: ${toneGuide[tone]}${promoLine}
-Services: ${serviceNames}
+SALON: Brazilian Blueprint
+TONE: ${toneGuide[tone || "warm"]}
+PROMO: ${promoLine}
+SERVICES: ${serviceNames}
 
-Rules:
+CLIENTS:
+${result.data.map((c, i) => `${i+1}. ${c.first_name} ${c.last_name || ""} — ${c.phone}`).join("\n")}
+
+RULES FOR EACH MESSAGE:
 - Start with their first name
 - Under 160 characters (SMS limit)
-- Include salon name
-- End with a call to action (book now, text back, etc)
-- No emojis except maybe one
+- Include "Brazilian Blueprint" or "Blueprint"
+- End with a call to action
+- Max one emoji
 - Sound human, not corporate
+- Each message should be slightly different
 
-Output ONLY the SMS text, nothing else.`;
+Format your response EXACTLY like this for each client:
+---
+NAME: [full name]
+PHONE: [phone]
+SMS: [the message]
+---
 
-    drafts.push({
-      client_id: client.id,
-      name: `${firstName} ${client.last_name || ""}`.trim(),
-      phone: client.phone,
-      prompt_tone: tone,
-      prompt_promo: promo || null,
-      // Claude will fill this in when processing the tool result
-      draft_prompt: prompt
+Output ALL ${result.data.length} messages now.`
+        }]
+      })
     });
-  }
 
-  return {
-    count: drafts.length,
-    tone,
-    promo: promo || "none",
-    drafts,
-    status: "QUEUED — A2P pending. Messages ready to send when Twilio clears.",
-    instruction: "Claude: For each draft, generate the SMS using the draft_prompt. Present all messages together."
-  };
+    if (!res.ok) throw new Error(`Claude API ${res.status}`);
+    const data = await res.json();
+    const text = data.content?.find(b => b.type === "text")?.text || "";
+
+    // Parse the drafts from Claude's response
+    const drafts = [];
+    const blocks = text.split("---").filter(b => b.trim());
+
+    for (const block of blocks) {
+      const nameMatch = block.match(/NAME:\s*(.+)/i);
+      const phoneMatch = block.match(/PHONE:\s*(.+)/i);
+      const smsMatch = block.match(/SMS:\s*(.+)/i);
+
+      if (smsMatch) {
+        drafts.push({
+          name: nameMatch ? nameMatch[1].trim() : "Unknown",
+          phone: phoneMatch ? phoneMatch[1].trim() : "",
+          sms: smsMatch[1].trim(),
+          chars: smsMatch[1].trim().length
+        });
+      }
+    }
+
+    return {
+      count: drafts.length,
+      tone: tone || "warm",
+      promo: promo || "none",
+      drafts: drafts.map(d => `${d.name} (${d.phone}):\n"${d.sms}" [${d.chars} chars]`),
+      status: "DRAFTED — A2P pending. Ready to send when Twilio clears.",
+      raw_drafts: drafts
+    };
+  } catch (err) {
+    return { error: `Draft generation failed: ${err.message}` };
+  }
 }
 
 async function getStats() {
