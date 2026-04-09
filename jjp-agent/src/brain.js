@@ -25,7 +25,7 @@ import {
 } from "./memory.js";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-opus-4-20250514";
+const MODEL = "claude-sonnet-4-20250514";
 
 // Proxy setup
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
