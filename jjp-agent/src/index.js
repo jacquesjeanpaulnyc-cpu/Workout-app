@@ -14,6 +14,7 @@ import { startA2PWatcher } from "./a2p-watcher.js";
 import { startCalendarAlerts } from "./calendar-intel.js";
 import { getDailyCost } from "./brain.js";
 import { startAutonomousMonitors } from "./autonomous-monitors.js";
+import { getHealthStatus, ensureAgentLogsTable, logAction, updateHealth } from "./orchestration.js";
 
 console.log("╔══════════════════════════════════════╗");
 console.log("║       JJP AGENT — INTEL ONLINE       ║");
@@ -56,33 +57,23 @@ startCalendarAlerts(sendToOwner);
 // Start autonomous monitors (7 independent intelligence systems)
 startAutonomousMonitors(sendToOwner);
 
+// ── Initialize logging table ──
+ensureAgentLogsTable();
+logAction("system_start", "JJP Agent started", true);
+
 // ── Health Check HTTP Server ──
-// Railway uses this to verify the service is alive
 
 const PORT = process.env.PORT || 3000;
 
 const server = createServer((req, res) => {
   if (req.url === "/health" || req.url === "/") {
-    const uptime = Math.floor((Date.now() - startTime) / 1000);
-    const hours = Math.floor(uptime / 3600);
-    const mins = Math.floor((uptime % 3600) / 60);
+    const health = getHealthStatus();
     const cost = getDailyCost();
+    health.cost_today = cost.estimatedCost;
+    health.tokens_today = { input: cost.inputTokens, output: cost.outputTokens };
 
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "online",
-      agent: "JJP Agent",
-      uptime: `${hours}h ${mins}m`,
-      cost_today: cost.estimatedCost,
-      tokens_today: { input: cost.inputTokens, output: cost.outputTokens },
-      services: {
-        telegram_bot: "active",
-        briefings: "scheduled",
-        salon_monitor: "active",
-        a2p_watcher: "active",
-        calendar_alerts: "active"
-      }
-    }));
+    res.end(JSON.stringify(health, null, 2));
   } else {
     res.writeHead(404);
     res.end("Not found");
@@ -90,7 +81,7 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[HEALTH] Health check server on port ${PORT}`);
+  console.log(`[HEALTH] Health check: http://localhost:${PORT}/health`);
 });
 
 // Keep process alive

@@ -5,6 +5,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { processMessage } from "./brain.js";
 import { writeFileSync, createReadStream, unlinkSync } from "fs";
+import { enqueue, classifyMessage, incrementMessages, logAction } from "./orchestration.js";
 
 let bot = null;
 let ownerId = null;
@@ -73,24 +74,37 @@ async function transcribeVoice(fileId) {
  * Handle an incoming message (text or voice) and send response
  */
 async function handleMessage(chatId, text, firstName) {
-  console.log(`[BOT] Message from ${firstName}: ${text}`);
+  const route = classifyMessage(text);
+  console.log(`[BOT] Message from ${firstName} [${route}]: ${text}`);
+  incrementMessages();
 
   // Show typing indicator
   bot.sendChatAction(chatId, "typing");
 
-  // Process through Claude brain
-  const response = await processMessage(text, (reminderText) => {
-    sendMessage(chatId, reminderText);
-  });
+  // Queue the message for sequential processing
+  try {
+    const response = await enqueue(async () => {
+      const start = Date.now();
+      const result = await processMessage(text, (reminderText) => {
+        sendMessage(chatId, reminderText);
+      });
+      await logAction("message_processed", `[${route}] ${text.slice(0, 100)}`, true, Date.now() - start);
+      return result;
+    });
 
-  // Send response (split if over Telegram's 4096 char limit)
-  if (response.length > 4096) {
-    const chunks = splitMessage(response, 4096);
-    for (const chunk of chunks) {
-      await bot.sendMessage(chatId, chunk);
+    // Send response (split if over Telegram's 4096 char limit)
+    if (response.length > 4096) {
+      const chunks = splitMessage(response, 4096);
+      for (const chunk of chunks) {
+        await bot.sendMessage(chatId, chunk);
+      }
+    } else {
+      await bot.sendMessage(chatId, response);
     }
-  } else {
-    await bot.sendMessage(chatId, response);
+  } catch (err) {
+    console.error("[BOT] Message processing failed:", err.message);
+    await bot.sendMessage(chatId, "Something went wrong. Try again in a moment.");
+    await logAction("error", `Message failed: ${err.message}`, false);
   }
 }
 
