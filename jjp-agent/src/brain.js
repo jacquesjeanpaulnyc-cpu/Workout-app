@@ -50,23 +50,65 @@ const toolExecutors = {
 };
 
 async function callClaude(body) {
-  const res = await undiciFetch(API_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify(body),
-    ...(dispatcher ? { dispatcher } : {})
-  });
+  // Retry up to 3 times on transient errors
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await undiciFetch(API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify(body),
+      ...(dispatcher ? { dispatcher } : {})
+    });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`API ${res.status}: ${errText}`);
+    if (res.status === 529 || res.status === 503) {
+      // Overloaded or service unavailable — retry
+      console.log(`[BRAIN] API ${res.status}, retrying in ${(attempt + 1) * 3}s...`);
+      await new Promise(r => setTimeout(r, (attempt + 1) * 3000));
+      continue;
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`API ${res.status}: ${errText}`);
+    }
+
+    // Track cost estimate
+    const data = await res.json();
+    trackCost(data.usage);
+    return data;
   }
 
-  return res.json();
+  throw new Error("API overloaded after 3 retries");
+}
+
+// ── Cost Tracking ──
+
+let dailyCost = { date: "", inputTokens: 0, outputTokens: 0 };
+
+function trackCost(usage) {
+  if (!usage) return;
+  const today = new Date().toISOString().split("T")[0];
+  if (dailyCost.date !== today) {
+    dailyCost = { date: today, inputTokens: 0, outputTokens: 0 };
+  }
+  dailyCost.inputTokens += usage.input_tokens || 0;
+  dailyCost.outputTokens += usage.output_tokens || 0;
+}
+
+export function getDailyCost() {
+  // Sonnet pricing: $3/M input, $15/M output
+  const inputCost = (dailyCost.inputTokens / 1_000_000) * 3;
+  const outputCost = (dailyCost.outputTokens / 1_000_000) * 15;
+  return {
+    date: dailyCost.date,
+    inputTokens: dailyCost.inputTokens,
+    outputTokens: dailyCost.outputTokens,
+    estimatedCost: `$${(inputCost + outputCost).toFixed(4)}`,
+    breakdown: `Input: ${dailyCost.inputTokens} tokens ($${inputCost.toFixed(4)}) | Output: ${dailyCost.outputTokens} tokens ($${outputCost.toFixed(4)})`
+  };
 }
 
 async function buildSystemPrompt(query = "") {
@@ -269,6 +311,13 @@ function handleMemoryCommand(text) {
     })();
   }
 
+  // "cost" / "how much am I spending" / "token usage"
+  if (lower === "cost" || lower.includes("token usage") || lower.includes("api cost") ||
+      lower.includes("how much am i spending") || lower.includes("agent cost")) {
+    const cost = getDailyCost();
+    return `📊 Agent cost today (${cost.date}):\n${cost.breakdown}\nEstimated: ${cost.estimatedCost}`;
+  }
+
   // "check calendar" / "what's on my calendar" / "my schedule"
   if (lower.includes("check calendar") || lower.includes("my schedule") ||
       lower.includes("what's on my calendar") || lower.includes("whats on my calendar")) {
@@ -403,8 +452,26 @@ export async function processMessage(userMessage, sendTelegram) {
     autoSave(userMessage, text).catch(() => {});
     return text;
   } catch (err) {
-    console.error("[BRAIN ERROR]", err.message);
-    return `Agent error: ${err.message}`;
+    const msg = err.message || "Unknown error";
+    console.error("[BRAIN ERROR]", msg);
+
+    // Graceful error messages instead of raw dumps
+    if (msg.includes("529") || msg.includes("overloaded")) {
+      return "I'm hitting API limits right now. Try again in 30 seconds.";
+    }
+    if (msg.includes("401") || msg.includes("authentication")) {
+      return "API key issue — check Anthropic credits at console.anthropic.com.";
+    }
+    if (msg.includes("429") || msg.includes("rate")) {
+      return "Rate limited. Wait a minute and try again.";
+    }
+    if (msg.includes("timeout") || msg.includes("ETIMEDOUT")) {
+      return "Request timed out. Try a simpler question or try again.";
+    }
+    if (msg.includes("insufficient") || msg.includes("credit")) {
+      return "Out of API credits. Add funds at console.anthropic.com.";
+    }
+    return "Something went wrong. Try again in a moment.";
   }
 }
 
