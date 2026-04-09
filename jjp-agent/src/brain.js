@@ -17,6 +17,7 @@ import { definition as draftEmailDef, execute as draftEmailExec } from "./tools/
 import { definition as supabaseDef, execute as supabaseExec } from "./tools/supabase-query.js";
 import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
 import { definition as reactivationDef, execute as reactivationExec } from "./tools/reactivation-engine.js";
+import { definition as staffDef, execute as staffExec } from "./tools/staff-tracker.js";
 import { getTodayEvents } from "./calendar-intel.js";
 import { fullEmailScan } from "./gmail-triage.js";
 import {
@@ -35,7 +36,7 @@ const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 initMemory();
 
 // Tool registry
-const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef, calendarDef, reactivationDef];
+const tools = [webSearchDef, squareRevDef, reminderDef, draftEmailDef, supabaseDef, calendarDef, reactivationDef, staffDef];
 
 const toolExecutors = {
   web_search: webSearchExec,
@@ -44,7 +45,8 @@ const toolExecutors = {
   send_email: draftEmailExec,
   supabase_query: supabaseExec,
   google_calendar: calendarExec,
-  reactivation_engine: reactivationExec
+  reactivation_engine: reactivationExec,
+  staff_tracker: staffExec
 };
 
 async function callClaude(body) {
@@ -139,6 +141,7 @@ PERSONAL:
 - send_email: draft emails from personal or salon Gmail — presents in Telegram for review
 - supabase_query: pull live WaxOS pilot data (appointments, clients, specialists, no-shows, reactivation campaigns). Use "pilot_summary" for full overview
 - google_calendar: generate clickable "Add to Calendar" links for Google Calendar
+- staff_tracker: staff performance for Brazilian Blueprint. Shows per-specialist bookings, revenue share, cancellations, no-shows. Ask "how is Selena doing", "staff overview", "compare specialists". Team: Anyssa (owner, retiring Aug), Selena, Dallas.
 - reactivation_engine: client win-back system for Brazilian Blueprint. Find inactive clients (1,014 flagged), draft personalized SMS messages, track campaigns. Actions: "targets" (list inactive clients), "draft" (generate win-back SMS with optional promo and tone), "stats" (campaign overview). Messages queued until Twilio A2P clears.
 
 ═══ HOW TO THINK ═══
