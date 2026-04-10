@@ -43,8 +43,13 @@ async function getOrdersForDate(dateStr) {
 }
 
 async function getBookingsForDate(dateStr) {
+  // Use ET timezone (EDT = -04:00) for salon hours
+  // Convert to UTC range: ET midnight = UTC 04:00
+  const startUTC = new Date(`${dateStr}T00:00:00-04:00`).toISOString();
+  const endUTC = new Date(`${dateStr}T23:59:59-04:00`).toISOString();
+
   const data = await squareFetch(
-    `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=50&start_at_min=${dateStr}T00:00:00Z&start_at_max=${dateStr}T23:59:59Z`
+    `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=100&start_at_min=${startUTC}&start_at_max=${endUTC}`
   );
   return data?.bookings || [];
 }

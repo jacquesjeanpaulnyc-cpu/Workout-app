@@ -56,8 +56,10 @@ async function getOrdersForDate(dateStr) {
 }
 
 async function getBookingsForRange(startDate, endDate) {
+  const startUTC = new Date(`${startDate}T00:00:00-04:00`).toISOString();
+  const endUTC = new Date(`${endDate}T23:59:59-04:00`).toISOString();
   const data = await squareFetch(
-    `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=100&start_at_min=${startDate}T00:00:00Z&start_at_max=${endDate}T23:59:59Z`
+    `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=100&start_at_min=${startUTC}&start_at_max=${endUTC}`
   );
   return data?.bookings || [];
 }

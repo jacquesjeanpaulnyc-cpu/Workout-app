@@ -74,7 +74,9 @@ async function getBookings(startDate, endDate) {
 
   // Paginate through bookings
   for (let page = 0; page < 5; page++) {
-    let url = `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=100&start_at_min=${startDate}T00:00:00Z&start_at_max=${endDate}T23:59:59Z`;
+    const startUTC = new Date(`${startDate}T00:00:00-04:00`).toISOString();
+    const endUTC = new Date(`${endDate}T23:59:59-04:00`).toISOString();
+    let url = `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=100&start_at_min=${startUTC}&start_at_max=${endUTC}`;
     if (cursor) url += `&cursor=${cursor}`;
 
     const data = await squareFetch(url);
