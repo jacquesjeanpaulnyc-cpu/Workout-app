@@ -29,18 +29,22 @@ async function squareFetch(path, options = {}) {
 
 export const definition = {
   name: "staff_tracker",
-  description: "Staff performance tracker for Brazilian Blueprint. Shows per-specialist metrics: bookings, revenue attributed, average ticket, cancellations, no-shows. Ask 'how is Selena doing', 'staff performance this week', 'compare Dallas vs Selena', 'who is carrying the load'. Actions: 'overview' (all staff), 'individual' (one person), 'compare' (side by side).",
+  description: "Staff performance + schedule tracker for Brazilian Blueprint. PULLS FROM SQUARE BOOKINGS API. Use for ANY question about: who's working, schedule, booked appointments, tomorrow's schedule, today's schedule, staff performance, specialist bookings, no-shows, cancellations. Team: Anyssa (owner, retiring Aug), Selena, Dallas. ALWAYS call this tool for schedule questions — do not guess.",
   input_schema: {
     type: "object",
     properties: {
       action: {
         type: "string",
-        enum: ["overview", "individual", "compare"],
-        description: "overview = all staff, individual = one specialist, compare = side by side"
+        enum: ["overview", "individual", "compare", "schedule"],
+        description: "overview = all staff performance over N days, individual = one specialist, compare = side by side, schedule = specific day's bookings"
       },
       specialist: {
         type: "string",
         description: "Name: Anyssa, Selena, or Dallas (for individual action)"
+      },
+      date: {
+        type: "string",
+        description: "Date in YYYY-MM-DD format for 'schedule' action. Accepts 'today' or 'tomorrow' as shortcuts."
       },
       days: {
         type: "number",
@@ -51,7 +55,7 @@ export const definition = {
   }
 };
 
-export async function execute({ action, specialist, days }) {
+export async function execute({ action, specialist, days, date }) {
   if (!process.env.SQUARE_ACCESS_TOKEN) return { error: "Square not configured." };
 
   const lookback = days || 7;
@@ -60,12 +64,90 @@ export async function execute({ action, specialist, days }) {
     switch (action) {
       case "overview": return await getOverview(lookback);
       case "individual": return await getIndividual(specialist, lookback);
-      case "compare": return await getOverview(lookback); // Compare shows all
+      case "compare": return await getOverview(lookback);
+      case "schedule": return await getSchedule(date);
       default: return { error: `Unknown action: ${action}` };
     }
   } catch (err) {
     return { error: `Staff tracker error: ${err.message}` };
   }
+}
+
+async function getSchedule(dateInput) {
+  // Parse date input — accepts 'today', 'tomorrow', or YYYY-MM-DD
+  let targetDate;
+  const now = new Date();
+  if (!dateInput || dateInput === "today") {
+    targetDate = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  } else if (dateInput === "tomorrow") {
+    const t = new Date(now);
+    t.setDate(t.getDate() + 1);
+    targetDate = t.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  } else {
+    targetDate = dateInput;
+  }
+
+  const bookings = await getBookings(targetDate, targetDate);
+
+  // Group by specialist
+  const bySpecialist = {};
+  for (const [id, info] of Object.entries(TEAM)) {
+    bySpecialist[info.shortName] = {
+      accepted: [],
+      cancelled: [],
+      noShows: []
+    };
+  }
+
+  for (const booking of bookings) {
+    for (const seg of (booking.appointment_segments || [])) {
+      const info = TEAM[seg.team_member_id];
+      if (!info) continue;
+      const startTime = booking.start_at
+        ? new Date(booking.start_at).toLocaleTimeString("en-US", {
+            hour: "numeric", minute: "2-digit", timeZone: "America/New_York"
+          })
+        : "unknown";
+
+      const entry = { time: startTime, status: booking.status };
+
+      if (booking.status === "ACCEPTED" || booking.status === "COMPLETED") {
+        bySpecialist[info.shortName].accepted.push(entry);
+      } else if (booking.status?.includes("CANCELLED")) {
+        bySpecialist[info.shortName].cancelled.push(entry);
+      } else if (booking.status === "NO_SHOW") {
+        bySpecialist[info.shortName].noShows.push(entry);
+      }
+    }
+  }
+
+  // Build summary
+  const summary = [];
+  const totals = { accepted: 0, cancelled: 0, noShows: 0 };
+
+  for (const [name, data] of Object.entries(bySpecialist)) {
+    if (data.accepted.length === 0 && data.cancelled.length === 0 && data.noShows.length === 0) continue;
+    summary.push({
+      specialist: name,
+      bookings: data.accepted.length,
+      times: data.accepted.map(e => e.time),
+      cancelled: data.cancelled.length,
+      no_shows: data.noShows.length
+    });
+    totals.accepted += data.accepted.length;
+    totals.cancelled += data.cancelled.length;
+    totals.noShows += data.noShows.length;
+  }
+
+  return {
+    date: targetDate,
+    source: "Square Bookings API (live data)",
+    total_active_bookings: totals.accepted,
+    total_cancelled: totals.cancelled,
+    total_no_shows: totals.noShows,
+    by_specialist: summary,
+    note: totals.accepted === 0 ? "No active bookings this day." : null
+  };
 }
 
 async function getBookings(startDate, endDate) {
