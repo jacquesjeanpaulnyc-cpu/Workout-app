@@ -14,40 +14,66 @@ import { getEODEnriched } from "./salon-intel.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ALERT_LOG_PATH = join(__dirname, "..", "salon-alerts.json");
 
-// ── Alert deduplication (in-memory, resets on deploy/restart) ──
+// ── Alert deduplication (Supabase-backed, survives Railway deploys) ──
+// Uses agent_logs table with action_type "salon_alert_fired"
 
-// In-memory dedup — survives within process, resets daily
-let alertLog = { date: "", fired: [] };
+async function loadAlertLog() {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-function loadAlertLog() {
-  const today = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
-  if (alertLog.date !== today) {
-    alertLog = { date: today, fired: [] };
-  }
-  // Also try disk as backup
+  // Try Supabase first (persistent)
   try {
-    if (existsSync(ALERT_LOG_PATH)) {
-      const data = JSON.parse(readFileSync(ALERT_LOG_PATH, "utf-8"));
-      if (data.date === today) {
-        // Merge disk alerts into memory
-        for (const id of (data.fired || [])) {
-          if (!alertLog.fired.includes(id)) alertLog.fired.push(id);
-        }
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
+    if (url && key) {
+      const res = await fetch(
+        `${url}/rest/v1/agent_logs?action_type=eq.salon_alert_fired&details=like.${today}*&select=details`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        const fired = rows.map(r => {
+          // details format: "YYYY-MM-DD:alertId"
+          const parts = (r.details || "").split(":");
+          return parts[1] || "";
+        }).filter(Boolean);
+        return { date: today, fired };
       }
     }
   } catch {}
-  return alertLog;
+
+  // Fallback to in-memory only
+  return { date: today, fired: [] };
 }
 
-function saveAlertLog(log) {
-  alertLog = log;
-  try { writeFileSync(ALERT_LOG_PATH, JSON.stringify(log, null, 2), "utf-8"); } catch {}
+async function markAlertFired(log, id) {
+  if (log.fired.includes(id)) return;
+  log.fired.push(id);
+
+  // Persist to Supabase immediately
+  try {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
+    if (url && key) {
+      await fetch(`${url}/rest/v1/agent_logs`, {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal"
+        },
+        body: JSON.stringify({
+          action_type: "salon_alert_fired",
+          details: `${log.date}:${id}`,
+          success: true,
+          created_at: new Date().toISOString()
+        })
+      });
+    }
+  } catch {}
 }
 
 function hasAlertFired(log, id) { return log.fired.includes(id); }
-function markAlertFired(log, id) {
-  if (!log.fired.includes(id)) { log.fired.push(id); saveAlertLog(log); }
-}
 
 // ── Salon business hours (from Square location data) ──
 // Mon: 10:00-13:30, 17:00-20:00
@@ -135,7 +161,7 @@ async function runCheck(sendToOwner) {
     if (!(hour === 19 || (dayOfWeek === 0 && hour >= 18))) return;
   }
 
-  const log = loadAlertLog();
+  const log = await loadAlertLog();
   const orders = await getOrdersForDate(dateStr);
   const rev = calcRevenue(orders);
 
@@ -144,13 +170,13 @@ async function runCheck(sendToOwner) {
   // Milestones (only on salon days)
   if (rev.cents >= 150000 && !hasAlertFired(log, "m1500")) {
     await sendToOwner(`💈 Blueprint at $${rev.dollars} today 👑 Top day.`);
-    markAlertFired(log, "m1500");
+    await markAlertFired(log, "m1500");
   } else if (rev.cents >= 100000 && !hasAlertFired(log, "m1000")) {
     await sendToOwner(`💈 Blueprint crossed $1K today 🔥 Strong day. ($${rev.dollars})`);
-    markAlertFired(log, "m1000");
+    await markAlertFired(log, "m1000");
   } else if (rev.cents >= 50000 && !hasAlertFired(log, "m500")) {
     await sendToOwner(`💈 Blueprint hit $500 today 💰 Keep going. ($${rev.dollars})`);
-    markAlertFired(log, "m500");
+    await markAlertFired(log, "m500");
   }
 
   // Slow day — ONLY if salon is actually open AND has been open for a while
@@ -159,7 +185,7 @@ async function runCheck(sendToOwner) {
     if (rev.count > 0 || hour >= 16) {
       await sendToOwner(`💈 Slow day at Blueprint. $${rev.dollars} so far (${rev.count} services). Consider a same-day promo push.`);
     }
-    markAlertFired(log, "slow");
+    await markAlertFired(log, "slow");
   }
 
   // EOD summary (7 PM)
@@ -185,7 +211,7 @@ async function runCheck(sendToOwner) {
     } catch {}
 
     await sendToOwner(`💈 Blueprint closed at $${rev.dollars} today. ${rev.count} services. ${diffStr} vs last week.${insight ? `\n${insight}` : ""}`);
-    markAlertFired(log, "eod");
+    await markAlertFired(log, "eod");
   }
 
   // Weekly wrap (Sunday 6 PM)
@@ -208,7 +234,7 @@ async function runCheck(sendToOwner) {
     const diff = totalCents - prevCents;
     const diffStr = diff >= 0 ? `+$${(diff/100).toFixed(2)}` : `-$${(Math.abs(diff)/100).toFixed(2)}`;
     await sendToOwner(`💈 Week wrap: Blueprint did $${(totalCents/100).toFixed(2)}. ${diffStr} vs last week. Best day: ${bestDay.name} ($${(bestDay.cents/100).toFixed(2)}). ${totalCount} services.`);
-    markAlertFired(log, "weekly");
+    await markAlertFired(log, "weekly");
   }
 }
 
@@ -220,9 +246,8 @@ export function startSalonMonitor(sendToOwner) {
 
   console.log("[MONITOR] Salon revenue monitor active (hourly, 9 AM - 8 PM ET)");
 
-  // Run every hour
+  // Run every hour on the hour
   cron.schedule("0 * * * *", () => runCheck(sendToOwner), { timezone: "America/New_York" });
 
-  // Also run immediately on startup (if during salon hours)
-  setTimeout(() => runCheck(sendToOwner), 5000);
+  // DO NOT auto-fire on startup — caused duplicate alerts on every Railway deploy
 }
