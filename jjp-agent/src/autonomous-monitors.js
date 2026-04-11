@@ -1,7 +1,7 @@
 /**
  * Autonomous Monitors — JJP Agent comes to you. You never go to it.
  *
- * 7 independent monitors run on cron schedules:
+ * 8 independent monitors run on cron schedules:
  *   1. Square Pattern Intelligence — Sunday 6 PM
  *   2. WaxOS Pilot Health — Every 12h
  *   3. Email Intelligence — 5:25 AM daily (feeds into morning brief)
@@ -9,6 +9,7 @@
  *   5. Relocation Intelligence — Wednesday 7 AM
  *   6. Decision Tracker — Monday 6:15 AM
  *   7. Contractor & Lease Tracker — 1st of month + countdowns
+ *   8. Weekly Learning Curator — Saturday 8 AM (AI/SaaS/build content)
  *
  * RULE: Push ONLY when threshold is crossed. Silence = everything is fine.
  */
@@ -18,6 +19,9 @@ import { fetch as undiciFetch, ProxyAgent } from "undici";
 import { MemoryClient } from "mem0ai";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
+import { execute as webSearchExec } from "./tools/web-search.js";
+
+// autonomous-monitors.js is at src/, web-search at src/tools/ — path is correct
 
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxyUrl ? new (await import("undici")).ProxyAgent(proxyUrl) : undefined;
@@ -488,6 +492,110 @@ async function contractorLeaseTracker(sendToOwner) {
 }
 
 // ══════════════════════════════════════
+// MONITOR 8 — WEEKLY LEARNING CURATOR
+// Saturday 8 AM — Real links to articles/videos for Jay's journey
+// ══════════════════════════════════════
+
+const LEARNING_QUERIES = [
+  { category: "🤖 AI Agents", query: "AI agent tutorials 2026 Claude API build" },
+  { category: "💰 Solo SaaS", query: "solo founder SaaS bootstrapping 2026 indie hackers" },
+  { category: "📞 Twilio A2P", query: "Twilio A2P toll-free verification 2026 SMS automation" },
+  { category: "💅 Beauty Tech", query: "beauty salon tech automation AI 2026" },
+  { category: "🏗️ AI Automation", query: "AI workflow automation agents 2026 productivity" }
+];
+
+async function weeklyLearningCurator(sendToOwner) {
+  console.log("[MONITOR-8] Running weekly learning curator...");
+
+  try {
+    const allResults = [];
+
+    // Run all searches in parallel
+    const searches = await Promise.all(
+      LEARNING_QUERIES.map(async ({ category, query }) => {
+        try {
+          const result = await webSearchExec({ query, max_results: 5 });
+          return { category, query, results: result.results || [] };
+        } catch {
+          return { category, query, results: [] };
+        }
+      })
+    );
+
+    // Collect top results across categories
+    for (const search of searches) {
+      if (!search.results.length) continue;
+      // Take top 1-2 from each category
+      allResults.push({
+        category: search.category,
+        items: search.results.slice(0, 2).filter(r => r.url && r.title)
+      });
+    }
+
+    // Filter out categories with no results
+    const filled = allResults.filter(c => c.items.length > 0);
+    if (filled.length === 0) {
+      console.log("[MONITOR-8] No results found. Silent.");
+      return;
+    }
+
+    // Use Claude to pick the best and rank them
+    const candidatesText = filled.map(c =>
+      `${c.category}:\n${c.items.map(i => `- ${i.title} (${i.url})\n  ${i.snippet || ""}`).join("\n")}`
+    ).join("\n\n");
+
+    const pickerPrompt = `You are curating a weekly learning digest for Jay. He is building:
+- WaxOS (AI SaaS for wax specialists on Claude API + Supabase + Twilio)
+- Brazilian Blueprint (salon in Providence RI)
+- Personal AI chief of staff (Telegram agent)
+- Planning relocation to Ecuador by August 2026
+
+From these search results, pick the TOP 5 most valuable items that match his journey.
+Each pick must have a real URL. Output as JSON array:
+[{"category":"...","title":"...","url":"...","why":"one sentence why this matters to Jay"}]
+
+Candidates:
+${candidatesText.slice(0, 4000)}
+
+Output ONLY the JSON array.`;
+
+    const insight = await claudeInsight(pickerPrompt);
+    if (!insight) {
+      console.log("[MONITOR-8] Claude curator failed. Silent.");
+      return;
+    }
+
+    // Parse JSON from Claude's response
+    let picks = [];
+    try {
+      const match = insight.match(/\[[\s\S]*\]/);
+      if (match) picks = JSON.parse(match[0]);
+    } catch {
+      console.log("[MONITOR-8] Failed to parse picks. Silent.");
+      return;
+    }
+
+    if (!picks.length) return;
+
+    // Build message with real clickable links
+    const lines = ["📚 WEEKLY LEARNING DIGEST", ""];
+    picks.slice(0, 5).forEach((pick, i) => {
+      lines.push(`${i + 1}. ${pick.category || "📖"} ${pick.title}`);
+      lines.push(pick.url);
+      if (pick.why) lines.push(`   └ ${pick.why}`);
+      lines.push("");
+    });
+    lines.push("— JJP Agent curated for your week ahead.");
+
+    await sendToOwner(lines.join("\n"));
+    await saveMem0(`Weekly learning digest sent: ${picks.map(p => p.title).join(", ")}`);
+    console.log(`[MONITOR-8] Pushed ${picks.length} links.`);
+  } catch (err) {
+    console.error("[MONITOR-8] Error:", err.message);
+  }
+}
+
+// ══════════════════════════════════════
 // MASTER SCHEDULER — Wire all monitors
 // ══════════════════════════════════════
 
@@ -516,6 +624,9 @@ export function startAutonomousMonitors(sendToOwner) {
   cron.schedule("0 7 1 * *", () => contractorLeaseTracker(sendToOwner), { timezone: "America/New_York" });
   cron.schedule("0 7 * * 1", () => contractorLeaseTracker(sendToOwner), { timezone: "America/New_York" });
 
+  // Monitor 8: Weekly Learning Curator — Saturday 8 AM
+  cron.schedule("0 8 * * 6", () => weeklyLearningCurator(sendToOwner), { timezone: "America/New_York" });
+
   console.log("[AUTONOMOUS] All monitors scheduled:");
   console.log("  1. 💈 Square Patterns — Sunday 6 PM");
   console.log("  2. ⚙️ WaxOS Pilot — 6 AM & 6 PM daily");
@@ -524,4 +635,5 @@ export function startAutonomousMonitors(sendToOwner) {
   console.log("  5. ✈️ Relocation Intel — Wednesday 7 AM");
   console.log("  6. 🧠 Decision Tracker — Monday 6:15 AM");
   console.log("  7. 📋 Contracts/Lease — 1st of month + Mondays");
+  console.log("  8. 📚 Learning Curator — Saturday 8 AM");
 }
