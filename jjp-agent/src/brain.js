@@ -379,20 +379,35 @@ export async function processMessage(userMessage, sendTelegram) {
     const messages = buildMessages(userMessage);
     const systemPrompt = await buildSystemPrompt(userMessage);
 
-    const response = await callClaude({
-      model: MODEL,
-      max_tokens: 2048,
-      system: systemPrompt,
-      tools,
-      messages
-    });
+    // Agentic loop — Claude can chain tool calls up to MAX_ITERATIONS times
+    const MAX_ITERATIONS = 6;
+    let conversationMessages = [...messages];
+    let iteration = 0;
+    let finalText = "";
 
-    // Handle tool use
-    if (response.stop_reason === "tool_use") {
+    while (iteration < MAX_ITERATIONS) {
+      iteration++;
+
+      const response = await callClaude({
+        model: MODEL,
+        max_tokens: 2048,
+        system: systemPrompt,
+        tools,
+        messages: conversationMessages
+      });
+
+      // If Claude is done (returned text, no more tools needed)
+      if (response.stop_reason !== "tool_use") {
+        finalText = extractText(response);
+        break;
+      }
+
+      // Claude wants to use tools — execute them
       const toolUseBlocks = response.content.filter(b => b.type === "tool_use");
       const toolResults = [];
 
       for (const toolUse of toolUseBlocks) {
+        console.log(`[BRAIN] Iteration ${iteration}: calling ${toolUse.name}`);
         const executor = toolExecutors[toolUse.name];
         if (!executor) {
           toolResults.push({
@@ -406,14 +421,10 @@ export async function processMessage(userMessage, sendTelegram) {
         let result;
         if (toolUse.name === "send_reminder") {
           result = executor(toolUse.input, sendTelegram);
-          if (result.confirmed) {
-            trackReminder(result.message, result.time);
-          }
+          if (result.confirmed) trackReminder(result.message, result.time);
         } else if (toolUse.name === "reactivation_engine" && toolUse.input?.action === "draft") {
-          // Reactivation drafts: send progress update, run tool, send results directly
           sendTelegram("📝 Generating drafts... this takes 10-30 seconds per batch of 10.");
           result = await executor(toolUse.input);
-          // Send drafts directly to Telegram (too large for Claude follow-up)
           if (result.drafts && result.drafts.length > 0) {
             const chunks = [];
             let chunk = `✅ ${result.count} reactivation drafts ready (${result.tone} tone):\n\n`;
@@ -425,23 +436,16 @@ export async function processMessage(userMessage, sendTelegram) {
               chunk += draft + "\n\n";
             }
             if (chunk) chunks.push(chunk);
-            for (const c of chunks) {
-              await sendTelegram(c);
-            }
-            // Return short summary to Claude
+            for (const c of chunks) await sendTelegram(c);
             result = { count: result.count, status: result.status, note: "Drafts already sent to Telegram." };
           }
         } else {
           result = await executor(toolUse.input);
         }
 
-        // If tool returns a file to send, queue it
         if (result && result.send_file) {
           sendTelegram(`📎 Sending file: ${result.summary || "export ready"}`);
-          // Send file via global sendFile function
-          if (global.__sendFile) {
-            global.__sendFile(result.send_file);
-          }
+          if (global.__sendFile) global.__sendFile(result.send_file);
         }
 
         toolResults.push({
@@ -451,31 +455,18 @@ export async function processMessage(userMessage, sendTelegram) {
         });
       }
 
-      // Send tool results back to Claude for final response
-      const followUp = await callClaude({
-        model: MODEL,
-        max_tokens: 2048,
-        system: systemPrompt,
-        tools,
-        messages: [
-          ...messages,
-          { role: "assistant", content: response.content },
-          { role: "user", content: toolResults }
-        ]
-      });
-
-      const text = extractText(followUp);
-      addMessage("agent", text);
-      // Auto-save to Mem0 in background (non-blocking)
-      autoSave(userMessage, text).catch(() => {});
-      return text;
+      // Append to conversation for next iteration
+      conversationMessages.push({ role: "assistant", content: response.content });
+      conversationMessages.push({ role: "user", content: toolResults });
     }
 
-    const text = extractText(response);
-    addMessage("agent", text);
-    // Auto-save to Mem0 in background (non-blocking)
-    autoSave(userMessage, text).catch(() => {});
-    return text;
+    if (!finalText) {
+      finalText = "I gathered the data but ran out of iterations. Try asking a more specific question.";
+    }
+
+    addMessage("agent", finalText);
+    autoSave(userMessage, finalText).catch(() => {});
+    return finalText;
   } catch (err) {
     const msg = err.message || "Unknown error";
     console.error("[BRAIN ERROR]", msg);
