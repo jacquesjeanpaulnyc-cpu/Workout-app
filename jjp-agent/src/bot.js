@@ -10,6 +10,22 @@ import { enqueue, classifyMessage, incrementMessages, logAction } from "./orches
 let bot = null;
 let ownerId = null;
 
+// Deduplication — track processed message IDs to prevent doubles
+const processedMessageIds = new Set();
+const MAX_DEDUP_SIZE = 500;
+
+function isDuplicate(msgId) {
+  if (!msgId) return false;
+  if (processedMessageIds.has(msgId)) return true;
+  processedMessageIds.add(msgId);
+  // Prevent unbounded growth
+  if (processedMessageIds.size > MAX_DEDUP_SIZE) {
+    const first = processedMessageIds.values().next().value;
+    processedMessageIds.delete(first);
+  }
+  return false;
+}
+
 /**
  * Transcribe a voice message using OpenAI Whisper API
  */
@@ -112,6 +128,12 @@ async function handleMessage(chatId, text, firstName) {
  * Initialize the Telegram bot with polling
  */
 export function startBot() {
+  // Idempotent — prevent double registration if called twice
+  if (bot) {
+    console.log("[BOT] Already started, skipping re-initialization");
+    return bot;
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
   ownerId = process.env.TELEGRAM_OWNER_ID;
 
@@ -148,6 +170,12 @@ export function startBot() {
   bot.on("message", async (msg) => {
     // Skip commands
     if (msg.text && msg.text.startsWith("/")) return;
+
+    // Deduplicate — reject if we've already processed this message
+    if (isDuplicate(msg.message_id)) {
+      console.log(`[BOT] Duplicate message ${msg.message_id} ignored`);
+      return;
+    }
 
     const chatId = msg.chat.id;
 
