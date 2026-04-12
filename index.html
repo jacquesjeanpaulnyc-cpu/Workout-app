@@ -13,7 +13,7 @@
   --bg:#0D0D0D;--card:#111;--card-hover:#1a1a1a;--border:#222;
   --text:#fff;--text2:#999;--text3:#555;
   --red:#E74C3C;--orange:#E67E22;--green:#27AE60;--blue:#3B82F6;
-  --purple:#9B59B6;
+  --purple:#9B59B6;--teal:#2DD4BF;
   --radius:14px;
 }
 html,body{height:100%;background:var(--bg);color:var(--text);
@@ -156,6 +156,30 @@ nav button.active .indicator{background:var(--accent,var(--text))}
   border-radius:10px;border:2px dashed var(--text3);cursor:pointer;color:var(--text3);font-size:24px}
 .photo-btn:hover{border-color:var(--text2);color:var(--text2)}
 
+/* Steps bar chart */
+.steps-chart{display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:120px;padding:0 4px;margin:12px 0}
+.steps-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.steps-bar-col{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.steps-bar{width:100%;max-width:28px;border-radius:4px 4px 0 0;background:var(--border);min-height:4px;
+  transition:height .4s ease,background .4s ease;position:relative}
+.steps-bar.active{background:var(--teal)}
+.steps-bar.today{background:var(--teal);opacity:1}
+.steps-bar-label{font-size:10px;color:var(--text3);flex-shrink:0}
+.steps-bar-label.today{color:var(--text);font-weight:600}
+.steps-avg-line{position:absolute;left:-8px;right:-8px;border-top:2px solid var(--orange);pointer-events:none;z-index:1}
+
+/* Walk timer */
+.walk-timer{display:flex;align-items:center;gap:16px;padding:8px 0}
+.walk-time-display{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:1px;flex:1}
+.walk-active{animation:walkPulse 2s ease-in-out infinite}
+@keyframes walkPulse{0%,100%{opacity:1}50%{opacity:.7}}
+
+/* Walk log items */
+.walk-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;
+  border-bottom:1px solid var(--border)}
+.walk-item:last-child{border-bottom:none}
+.walk-meta{font-size:11px;color:var(--text2)}
+
 /* Animations */
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .card{animation:fadeIn .3s ease}
@@ -226,6 +250,8 @@ nav button.active .indicator{background:var(--accent,var(--text))}
     <div class="tab" id="tab-food"></div>
     <!-- WATER TAB -->
     <div class="tab" id="tab-water"></div>
+    <!-- STEPS TAB -->
+    <div class="tab" id="tab-steps"></div>
   </div>
 
   <nav id="nav">
@@ -247,6 +273,11 @@ nav button.active .indicator{background:var(--accent,var(--text))}
     <button data-tab="water" onclick="switchTab('water')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l5.5 9A6.5 6.5 0 0112 22a6.5 6.5 0 01-5.5-11L12 2z"/></svg>
       Water
+      <div class="indicator"></div>
+    </button>
+    <button data-tab="steps" onclick="switchTab('steps')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16L8.2 11.8C8.6 11.4 9.2 11.4 9.6 11.8L12 14.2 15.8 10.4C16.2 10 16.8 10 17.2 10.4L20 13.2"/><path d="M4 20h16"/><path d="M4 20V4"/></svg>
+      Steps
       <div class="indicator"></div>
     </button>
   </nav>
@@ -397,7 +428,7 @@ const PROGRAMS = {
 const today = () => new Date().toISOString().slice(0,10);
 
 function loadSettings(){
-  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,currentWeek:1,split:3,fastStartHour:12,apiKey:''};
+  const d = {name:'',calorieTarget:2200,proteinTarget:180,waterTarget:4,stepTarget:10000,currentWeek:1,split:3,fastStartHour:12,apiKey:''};
   try{
     const s = {...d,...JSON.parse(localStorage.getItem('ph_settings'))};
     // Migrate old oz water target to litres
@@ -426,16 +457,22 @@ function loadFastLog(){ try{return JSON.parse(localStorage.getItem('ph_fast_log'
 function saveFastLog(d){ localStorage.setItem('ph_fast_log',JSON.stringify(d)) }
 function loadDaily(date){ try{return JSON.parse(localStorage.getItem('ph_daily_'+date))||{}}catch(e){return{}} }
 function saveDaily(date,d){ localStorage.setItem('ph_daily_'+date,JSON.stringify(d)) }
+function loadSteps(date){ return parseInt(localStorage.getItem('ph_steps_'+date))||0 }
+function saveSteps(date,v){ localStorage.setItem('ph_steps_'+date,v.toString()) }
+function loadWalks(date){ try{return JSON.parse(localStorage.getItem('ph_walks_'+date))||[]}catch(e){return[]} }
+function saveWalks(date,w){ localStorage.setItem('ph_walks_'+date,JSON.stringify(w)) }
+function loadActiveWalk(){ try{return JSON.parse(localStorage.getItem('ph_walk_active'))||{}}catch(e){return{}} }
+function saveActiveWalk(w){ localStorage.setItem('ph_walk_active',JSON.stringify(w)) }
 
 function calcStreak(){
   let streak=0; const d=new Date();
   const t=today();
-  const hasToday=loadMeals(t).length>0||loadWater(t)>0||Object.keys(loadWorkout(t)).length>0||Object.keys(loadMorning(t)).length>0;
+  const hasToday=loadMeals(t).length>0||loadWater(t)>0||Object.keys(loadWorkout(t)).length>0||Object.keys(loadMorning(t)).length>0||loadSteps(t)>0;
   if(hasToday) streak=1;
   for(let i=1;i<365;i++){
     d.setDate(d.getDate()-1);
     const ds=d.toISOString().slice(0,10);
-    const has=loadMeals(ds).length>0||loadWater(ds)>0||Object.keys(loadWorkout(ds)).length>0||Object.keys(loadMorning(ds)).length>0;
+    const has=loadMeals(ds).length>0||loadWater(ds)>0||Object.keys(loadWorkout(ds)).length>0||Object.keys(loadMorning(ds)).length>0||loadSteps(ds)>0;
     if(has) streak++; else break;
   }
   return streak;
@@ -460,7 +497,8 @@ function calcConsistency(days){
     morning:{hits:0,dates:[]},
     discipline:{hits:0,dates:[]},
     fasting:{hits:0,dates:[]},
-    water:{hits:0,dates:[]}
+    water:{hits:0,dates:[]},
+    steps:{hits:0,dates:[]}
   };
 
   dates.forEach(dt=>{
@@ -485,6 +523,10 @@ function calcConsistency(days){
     // Water: hit target
     const w=loadWater(dt);
     if(w>=s.waterTarget){results.water.hits++;results.water.dates.push(dt)}
+
+    // Steps: hit target
+    const st=loadSteps(dt);
+    if(st>=s.stepTarget){results.steps.hits++;results.steps.dates.push(dt)}
   });
 
   return {dates,results,total:days};
@@ -535,6 +577,7 @@ let settings = loadSettings();
 let currentTab = 'home';
 let selectedDay = 0;
 let fastingInterval = null;
+let walkInterval = null;
 
 // ── TAB SWITCHING ─────────────────────────────────────
 function switchTab(tab){
@@ -557,10 +600,12 @@ function updateAccent(){
 function render(){
   updateAccent();
   if(fastingInterval) clearInterval(fastingInterval);
+  if(walkInterval) clearInterval(walkInterval);
   if(currentTab==='home') renderHome();
   else if(currentTab==='workout') renderWorkout();
   else if(currentTab==='food') renderFood();
   else if(currentTab==='water') renderWater();
+  else if(currentTab==='steps') renderSteps();
 }
 
 function renderHome(){
@@ -576,6 +621,7 @@ function renderHome(){
   const wo=loadWorkout(today());
   let doneEx=0;
   Object.values(wo).forEach(d=>{ Object.values(d).forEach(v=>{if(v)doneEx++}) });
+  const steps=loadSteps(today());
   const greeting=s.name?`Hey, ${s.name}`:'Welcome';
 
   el.innerHTML=`
@@ -603,6 +649,13 @@ function renderHome(){
       <div class="summary-item">
         <div class="summary-val" style="color:var(--blue)">${water.toFixed(1)}<span style="font-size:12px">L</span></div>
         <div class="summary-label">Water</div>
+      </div>
+    </div>
+    <div class="summary-row">
+      <div class="summary-item" style="cursor:pointer" onclick="switchTab('steps')">
+        <div class="summary-val" style="color:var(--teal)">${steps.toLocaleString()}</div>
+        <div class="summary-label">Steps</div>
+        <div class="pbar" style="margin-top:6px"><div class="pbar-fill" style="width:${Math.min(100,steps/s.stepTarget*100)}%;background:var(--teal)"></div></div>
       </div>
     </div>
 
@@ -702,7 +755,8 @@ function renderConsistencyCard(){
     {key:'morning',label:'Morning Routine',color:'var(--green)',icon:'☀'},
     {key:'discipline',label:'Daily Discipline',color:'var(--purple)',icon:'📖'},
     {key:'fasting',label:'Fasting',color:'var(--orange)',icon:'⏱'},
-    {key:'water',label:'Hydration',color:'var(--blue)',icon:'💧'}
+    {key:'water',label:'Hydration',color:'var(--blue)',icon:'💧'},
+    {key:'steps',label:'Steps',color:'var(--teal)',icon:'👟'}
   ];
 
   let rowsHtml=categories.map(cat=>{
@@ -1124,14 +1178,17 @@ function resetWater(){
 }
 
 function resetDay(){
-  if(!confirm('Reset entire day? This clears all workouts, meals, water, morning routine, and daily discipline for today.')) return;
+  if(!confirm('Reset entire day? This clears all workouts, meals, water, steps, morning routine, and daily discipline for today.')) return;
   const d=today();
   localStorage.removeItem('ph_workout_'+d);
   localStorage.removeItem('ph_meals_'+d);
   localStorage.removeItem('ph_water_'+d);
+  localStorage.removeItem('ph_steps_'+d);
+  localStorage.removeItem('ph_walks_'+d);
   localStorage.removeItem('ph_morning_'+d);
   localStorage.removeItem('ph_daily_'+d);
   localStorage.removeItem('ph_fasting');
+  localStorage.removeItem('ph_walk_active');
   render();
 }
 
@@ -1637,6 +1694,231 @@ function addScannedMeal(name,cal,pro){
   renderFood();
 }
 
+// ── STEPS & WALK TOOL ────────────────────────────────
+function renderSteps(){
+  const el=document.getElementById('tab-steps');
+  const s=settings;
+  const steps=loadSteps(today());
+  const pct=Math.min(100,steps/s.stepTarget*100);
+  const r=70, circ=2*Math.PI*r;
+  const offset=circ-(pct/100)*circ;
+  const walks=loadWalks(today());
+  const aw=loadActiveWalk();
+  const isWalking=!!aw.active;
+
+  // Weekly data (Sun-Sat)
+  const weekData=getWeekStepData();
+  const maxSteps=Math.max(s.stepTarget,...weekData.map(d=>d.steps));
+  const avg=weekData.reduce((a,d)=>a+d.steps,0);
+  const weekAvg=Math.round(avg/7);
+  const avgPct=maxSteps>0?Math.round((weekAvg/maxSteps)*100):0;
+
+  // Walk timer display
+  let walkTimerHtml='';
+  if(isWalking){
+    const elapsed=Math.floor((Date.now()-new Date(aw.startTime).getTime())/1000);
+    const hrs=Math.floor(elapsed/3600);
+    const mins=Math.floor((elapsed%3600)/60);
+    const secs=elapsed%60;
+    const timeStr=(hrs>0?String(hrs).padStart(2,'0')+':':'')+String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+    const estSteps=Math.round(elapsed/60*100);
+
+    walkTimerHtml=`<div class="card">
+      <div class="card-title">Walk In Progress</div>
+      <div class="walk-timer">
+        <div>
+          <div class="walk-time-display walk-active" style="color:var(--teal)">${timeStr}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">~${estSteps.toLocaleString()} steps estimated</div>
+        </div>
+        <button class="btn btn-sm" style="background:var(--red);color:#fff;padding:12px 20px" onclick="stopWalk()">Stop</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Started ${new Date(aw.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>`;
+
+    if(walkInterval) clearInterval(walkInterval);
+    walkInterval=setInterval(()=>{if(currentTab==='steps') renderSteps()},1000);
+  } else {
+    walkTimerHtml=`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">Walk Tool</div>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Start a walk to track duration and auto-estimate steps (~100/min)</div>
+      <button class="btn btn-accent" style="width:100%;background:var(--teal);color:#000" onclick="startWalk()">
+        Start Walk
+      </button>
+    </div>`;
+  }
+
+  // Walk log
+  let walkLogHtml='';
+  if(walks.length){
+    const logItems=walks.map((w,i)=>{
+      const mins=Math.floor(w.duration/60);
+      const secs=w.duration%60;
+      return `<div class="walk-item">
+        <div>
+          <div style="font-size:13px">${w.steps.toLocaleString()} steps</div>
+          <div class="walk-meta">${mins}m ${secs}s · ${new Date(w.endTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <button class="meal-del" onclick="deleteWalk(${i})">×</button>
+      </div>`;
+    }).join('');
+    walkLogHtml=`<div class="card">
+      <div class="card-title">Today's Walks (${walks.length})</div>
+      ${logItems}
+    </div>`;
+  }
+
+  // Bar chart
+  const barsHtml=weekData.map((d,i)=>{
+    const h=maxSteps>0?Math.max(4,Math.round((d.steps/maxSteps)*100)):4;
+    const isToday=d.date===today();
+    const hasSteps=d.steps>0;
+    return `<div class="steps-bar-wrap">
+      <div class="steps-bar-col" style="position:relative">
+        ${i===0?`<div class="steps-avg-line" style="bottom:${avgPct}%;position:absolute;left:-4px;right:-4px"></div>`:''}
+        <div class="steps-bar ${hasSteps?'active':''} ${isToday?'today':''}" style="height:${h}%"></div>
+      </div>
+      <div class="steps-bar-label ${isToday?'today':''}">${d.label}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Today's Steps</div>
+      <div class="circle-wrap">
+        <div class="circle-container">
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--border)" stroke-width="10"/>
+            <circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--teal)" stroke-width="10"
+              stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
+              style="transition:stroke-dashoffset .5s ease"/>
+          </svg>
+          <div class="circle-inner">
+            <div class="circle-text" style="color:var(--teal)">${steps.toLocaleString()}</div>
+            <div class="circle-sub">of ${s.stepTarget.toLocaleString()} goal</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-row">
+        <button class="btn btn-sm btn-ghost" onclick="addSteps(500)">+500</button>
+        <button class="btn btn-sm btn-ghost" onclick="addSteps(1000)">+1K</button>
+        <button class="btn btn-sm btn-ghost" onclick="addSteps(2500)">+2.5K</button>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:4px">
+        <button class="btn btn-sm btn-ghost" onclick="promptCustomSteps()" style="font-size:11px">Custom</button>
+        <button class="btn btn-sm" style="background:var(--border);color:var(--red);font-size:11px" onclick="resetSteps()">Reset</button>
+      </div>
+    </div>
+
+    ${walkTimerHtml}
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="card-title" style="margin-bottom:0">Weekly Steps</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:10px;color:var(--orange)">—</span>
+        <span style="font-size:10px;color:var(--text3)">Avg: ${weekAvg.toLocaleString()} steps</span>
+      </div>
+      <div class="steps-chart" style="position:relative">
+        ${barsHtml}
+      </div>
+    </div>
+
+    ${walkLogHtml}
+
+    <div class="card">
+      <div class="card-title">Step Progress</div>
+      <div class="pbar-wrap" style="margin-bottom:0">
+        <div class="pbar-label"><span>Steps</span><span>${steps.toLocaleString()} / ${s.stepTarget.toLocaleString()}</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:var(--teal)"></div></div>
+      </div>
+    </div>
+  `;
+}
+
+function getWeekStepData(){
+  const d=new Date();
+  const dayOfWeek=d.getDay(); // 0=Sun
+  const startOfWeek=new Date(d);
+  startOfWeek.setDate(d.getDate()-dayOfWeek);
+  const labels=['S','M','T','W','T','F','S'];
+  const data=[];
+  for(let i=0;i<7;i++){
+    const dt=new Date(startOfWeek);
+    dt.setDate(startOfWeek.getDate()+i);
+    const dateStr=dt.toISOString().slice(0,10);
+    data.push({date:dateStr,steps:loadSteps(dateStr),label:labels[i]});
+  }
+  return data;
+}
+
+function addSteps(n){
+  const d=today();
+  const current=loadSteps(d);
+  saveSteps(d,current+n);
+  renderSteps();
+}
+
+function promptCustomSteps(){
+  const val=prompt('Enter step count to add:');
+  if(val===null) return;
+  const n=parseInt(val);
+  if(isNaN(n)||n<=0) return;
+  addSteps(n);
+}
+
+function resetSteps(){
+  if(!confirm('Reset today\'s step count to zero?')) return;
+  saveSteps(today(),0);
+  saveWalks(today(),[]);
+  renderSteps();
+}
+
+function startWalk(){
+  saveActiveWalk({active:true,startTime:new Date().toISOString()});
+  renderSteps();
+}
+
+function stopWalk(){
+  const aw=loadActiveWalk();
+  if(!aw.active) return;
+  const elapsed=Math.floor((Date.now()-new Date(aw.startTime).getTime())/1000);
+  const estSteps=Math.round(elapsed/60*100); // ~100 steps/min
+
+  // Log the walk
+  const d=today();
+  const walks=loadWalks(d);
+  walks.push({startTime:aw.startTime,endTime:new Date().toISOString(),duration:elapsed,steps:estSteps});
+  saveWalks(d,walks);
+
+  // Add estimated steps to daily total
+  const current=loadSteps(d);
+  saveSteps(d,current+estSteps);
+
+  // Clear active walk
+  saveActiveWalk({active:false});
+  if(walkInterval){clearInterval(walkInterval);walkInterval=null}
+  renderSteps();
+}
+
+function deleteWalk(i){
+  const d=today();
+  const walks=loadWalks(d);
+  // Subtract steps from daily total
+  const removed=walks[i];
+  if(removed){
+    const current=loadSteps(d);
+    saveSteps(d,Math.max(0,current-removed.steps));
+  }
+  walks.splice(i,1);
+  saveWalks(d,walks);
+  renderSteps();
+}
+
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function escAttr(s){return s.replace(/'/g,"\\'").replace(/\\/g,"\\\\")}
 
@@ -1671,9 +1953,13 @@ function toggleSettings(){
             <input class="form-input" id="set-water" type="number" step="0.5" value="${settings.waterTarget}"/>
           </div>
           <div class="form-group">
-            <label>Current Week (1-12)</label>
-            <input class="form-input" id="set-week" type="number" min="1" max="12" value="${settings.currentWeek}"/>
+            <label>Step Target</label>
+            <input class="form-input" id="set-steps" type="number" step="500" value="${settings.stepTarget}"/>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Current Week (1-12)</label>
+          <input class="form-input" id="set-week" type="number" min="1" max="12" value="${settings.currentWeek}"/>
         </div>
         <div class="form-group">
           <label>Program Split</label>
@@ -1700,6 +1986,7 @@ function saveSettingsForm(){
   settings.calorieTarget=parseInt(document.getElementById('set-cal').value)||2200;
   settings.proteinTarget=parseInt(document.getElementById('set-pro').value)||180;
   settings.waterTarget=parseFloat(document.getElementById('set-water').value)||4;
+  settings.stepTarget=parseInt(document.getElementById('set-steps').value)||10000;
   settings.currentWeek=Math.max(1,Math.min(12,parseInt(document.getElementById('set-week').value)||1));
   settings.split=document.getElementById('set-split-5').classList.contains('active')?5:3;
   settings.apiKey=document.getElementById('set-apikey').value.trim();
