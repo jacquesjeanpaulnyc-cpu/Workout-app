@@ -34,13 +34,13 @@ header button:hover{color:var(--text)}
 .content::-webkit-scrollbar{width:0}
 
 /* Bottom Nav */
-nav{display:flex;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg)}
-nav button{flex:1;padding:12px 0 14px;background:none;border:none;color:var(--text3);
-  font-family:inherit;font-size:10px;cursor:pointer;display:flex;flex-direction:column;
-  align-items:center;gap:4px;transition:color .2s}
+nav{display:flex;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg);overflow:hidden}
+nav button{flex:1;min-width:0;padding:10px 0 12px;background:none;border:none;color:var(--text3);
+  font-family:inherit;font-size:9px;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:3px;transition:color .2s}
 nav button.active{color:var(--text)}
-nav button svg{width:22px;height:22px}
-nav .indicator{height:2px;border-radius:1px;width:20px;margin-top:2px;transition:background .2s}
+nav button svg{width:20px;height:20px;flex-shrink:0}
+nav .indicator{height:2px;border-radius:1px;width:16px;margin-top:1px;transition:background .2s}
 nav button.active .indicator{background:var(--accent,var(--text))}
 
 /* Cards */
@@ -276,7 +276,7 @@ nav button.active .indicator{background:var(--accent,var(--text))}
       <div class="indicator"></div>
     </button>
     <button data-tab="steps" onclick="switchTab('steps')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16L8.2 11.8C8.6 11.4 9.2 11.4 9.6 11.8L12 14.2 15.8 10.4C16.2 10 16.8 10 17.2 10.4L20 13.2"/><path d="M4 20h16"/><path d="M4 20V4"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 4c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/><path d="M7.5 8.5L10 7l3 3-2.5 3.5L14 17l-3 4"/><path d="M7.5 8.5l-3 5.5 3 1 2-2.5"/></svg>
       Steps
       <div class="indicator"></div>
     </button>
