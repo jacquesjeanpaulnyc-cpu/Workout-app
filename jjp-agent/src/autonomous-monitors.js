@@ -20,8 +20,7 @@ import { MemoryClient } from "mem0ai";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { execute as webSearchExec } from "./tools/web-search.js";
-
-// autonomous-monitors.js is at src/, web-search at src/tools/ — path is correct
+import { getETDayName, addDays, todayET, getETDayOfWeek } from "./date-utils.js";
 
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
 const dispatcher = proxyUrl ? new (await import("undici")).ProxyAgent(proxyUrl) : undefined;
@@ -85,49 +84,39 @@ function dateStr(offset = 0) {
  *   weeksBack=1 returns Mar 23 - Mar 29
  */
 function weekRange(weeksBack = 0) {
-  // Use ET for consistent day-of-week
-  const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const dayOfWeek = etNow.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  // Work entirely in ET dates as YYYY-MM-DD strings
+  const today = todayET(); // e.g. "2026-04-12"
+  const todayDow = getETDayOfWeek(today); // 0=Sun, 6=Sat in ET
 
-  // Find the most recently completed Sunday (end of last completed week)
-  // If today is Sunday, the completed week ended YESTERDAY (Saturday)... wait no.
-  // Standard interpretation: Mon-Sun week. Completed week ended on the most recent Sunday.
-  // If today is Monday, last completed week ended yesterday (Sunday).
-  // If today is Sunday, last completed week ended 7 days ago (last Sunday).
-  //   (today's data is still incomplete)
-  // If today is Wednesday, last completed week ended Sunday 3 days ago.
-
-  const daysSinceLastSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
-  const lastCompletedSunday = new Date(etNow);
-  lastCompletedSunday.setDate(lastCompletedSunday.getDate() - daysSinceLastSunday);
+  // Find the most recently completed Sunday (last day of last completed week)
+  // If today is Monday, last completed Sunday was yesterday (1 day back)
+  // If today is Sunday, last completed Sunday was 7 days back (this Sunday isn't done yet)
+  // If today is Wed, last completed Sunday was 3 days back
+  const daysSinceLastSunday = todayDow === 0 ? 7 : todayDow;
+  const lastCompletedSunday = addDays(today, -daysSinceLastSunday);
 
   // Apply weeksBack offset
-  const endDate = new Date(lastCompletedSunday);
-  endDate.setDate(endDate.getDate() - (weeksBack * 7));
+  const endStr = addDays(lastCompletedSunday, -(weeksBack * 7));
+  const startStr = addDays(endStr, -6); // Mon is 6 days before Sun
 
-  const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - 6); // Mon is 6 days before Sun
+  const [sy, sm, sd] = startStr.split("-").map(Number);
+  const [ey, em, ed] = endStr.split("-").map(Number);
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const label = `${MONTHS[sm-1]} ${sd} to ${MONTHS[em-1]} ${ed}`;
 
   return {
-    start: startDate.toISOString().split("T")[0],
-    end: endDate.toISOString().split("T")[0],
-    label: formatRange(startDate, endDate)
+    start: startStr,
+    end: endStr,
+    label
   };
-}
-
-function formatRange(start, end) {
-  const opts = { month: "short", day: "numeric" };
-  const s = start.toLocaleDateString("en-US", opts);
-  const e = end.toLocaleDateString("en-US", opts);
-  return `${s} to ${e}`;
 }
 
 async function weekRevenue(weeksBack = 0) {
   const range = weekRange(weeksBack);
   let total = 0, count = 0;
   for (let i = 0; i < 7; i++) {
-    const d = new Date(range.start); d.setDate(d.getDate() + i);
-    const orders = await getOrdersForDate(d.toISOString().split("T")[0]);
+    const ds = addDays(range.start, i);
+    const orders = await getOrdersForDate(ds);
     total += orders.reduce((s, o) => s + (o.total_money?.amount || 0), 0);
     count += orders.length;
   }
@@ -197,10 +186,8 @@ async function squarePatternIntel(sendToOwner) {
 
     for (const weekRng of weeksToAnalyze) {
       for (let d = 0; d < 7; d++) {
-        const date = new Date(weekRng.start);
-        date.setDate(date.getDate() + d);
-        const ds = date.toISOString().split("T")[0];
-        const dayName = dayNames[date.getDay()];
+        const ds = addDays(weekRng.start, d);
+        const dayName = getETDayName(ds); // ET-correct day name
         if (!weeklyByDay[dayName]) weeklyByDay[dayName] = [];
         const orders = await getOrdersForDate(ds);
         const rev = orders.reduce((s, o) => s + (o.total_money?.amount || 0), 0);

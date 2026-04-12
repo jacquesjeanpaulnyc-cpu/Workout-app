@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { getEODEnriched } from "./salon-intel.js";
+import { getETDayName, addDays, todayET } from "./date-utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ALERT_LOG_PATH = join(__dirname, "..", "salon-alerts.json");
@@ -216,24 +217,26 @@ async function runCheck(sendToOwner) {
 
   // Weekly wrap (Sunday 6 PM)
   if (dayOfWeek === 0 && hour >= 18 && !hasAlertFired(log, "weekly")) {
-    let totalCents = 0, totalCount = 0, bestDay = { name: "", cents: 0 };
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let totalCents = 0, totalCount = 0, bestDay = { name: "", date: "", cents: 0 };
+    console.log(`[MONITOR] Weekly wrap — computing from ${dateStr}`);
     for (let i = 0; i < 7; i++) {
-      const d = new Date(dateStr); d.setDate(d.getDate() - i);
+      const ds = addDays(dateStr, -i);
       try {
-        const r = calcRevenue(await getOrdersForDate(d.toISOString().split("T")[0]));
+        const r = calcRevenue(await getOrdersForDate(ds));
+        const dayName = getETDayName(ds);
+        console.log(`[MONITOR]   ${ds} ${dayName}: $${r.dollars} / ${r.count} orders`);
         totalCents += r.cents; totalCount += r.count;
-        if (r.cents > bestDay.cents) bestDay = { name: dayNames[d.getDay()], cents: r.cents };
+        if (r.cents > bestDay.cents) bestDay = { name: dayName, date: ds, cents: r.cents };
       } catch {}
     }
     let prevCents = 0;
     for (let i = 7; i < 14; i++) {
-      const d = new Date(dateStr); d.setDate(d.getDate() - i);
-      try { prevCents += calcRevenue(await getOrdersForDate(d.toISOString().split("T")[0])).cents; } catch {}
+      const ds = addDays(dateStr, -i);
+      try { prevCents += calcRevenue(await getOrdersForDate(ds)).cents; } catch {}
     }
     const diff = totalCents - prevCents;
     const diffStr = diff >= 0 ? `+$${(diff/100).toFixed(2)}` : `-$${(Math.abs(diff)/100).toFixed(2)}`;
-    await sendToOwner(`💈 Week wrap: Blueprint did $${(totalCents/100).toFixed(2)}. ${diffStr} vs last week. Best day: ${bestDay.name} ($${(bestDay.cents/100).toFixed(2)}). ${totalCount} services.`);
+    await sendToOwner(`💈 Week wrap: Blueprint did $${(totalCents/100).toFixed(2)}. ${diffStr} vs last week. Best day: ${bestDay.name} ${bestDay.date} ($${(bestDay.cents/100).toFixed(2)}). ${totalCount} services.`);
     await markAlertFired(log, "weekly");
   }
 }
