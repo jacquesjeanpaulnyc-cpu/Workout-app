@@ -74,11 +74,52 @@ function dateStr(offset = 0) {
   return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+/**
+ * Get a completed Mon-Sun week range.
+ * weeksBack=0 → most recently COMPLETED Mon-Sun week (never the current one)
+ * weeksBack=1 → the week before that
+ * weeksBack=2 → the week before that
+ *
+ * Example: If today is Wed Apr 9, 2026:
+ *   weeksBack=0 returns Mar 30 - Apr 5 (last completed week)
+ *   weeksBack=1 returns Mar 23 - Mar 29
+ */
 function weekRange(weeksBack = 0) {
-  const now = new Date();
-  const end = new Date(now); end.setDate(end.getDate() - (weeksBack * 7));
-  const start = new Date(end); start.setDate(start.getDate() - 6);
-  return { start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] };
+  // Use ET for consistent day-of-week
+  const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const dayOfWeek = etNow.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  // Find the most recently completed Sunday (end of last completed week)
+  // If today is Sunday, the completed week ended YESTERDAY (Saturday)... wait no.
+  // Standard interpretation: Mon-Sun week. Completed week ended on the most recent Sunday.
+  // If today is Monday, last completed week ended yesterday (Sunday).
+  // If today is Sunday, last completed week ended 7 days ago (last Sunday).
+  //   (today's data is still incomplete)
+  // If today is Wednesday, last completed week ended Sunday 3 days ago.
+
+  const daysSinceLastSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const lastCompletedSunday = new Date(etNow);
+  lastCompletedSunday.setDate(lastCompletedSunday.getDate() - daysSinceLastSunday);
+
+  // Apply weeksBack offset
+  const endDate = new Date(lastCompletedSunday);
+  endDate.setDate(endDate.getDate() - (weeksBack * 7));
+
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 6); // Mon is 6 days before Sun
+
+  return {
+    start: startDate.toISOString().split("T")[0],
+    end: endDate.toISOString().split("T")[0],
+    label: formatRange(startDate, endDate)
+  };
+}
+
+function formatRange(start, end) {
+  const opts = { month: "short", day: "numeric" };
+  const s = start.toLocaleDateString("en-US", opts);
+  const e = end.toLocaleDateString("en-US", opts);
+  return `${s} to ${e}`;
 }
 
 async function weekRevenue(weeksBack = 0) {
@@ -90,7 +131,7 @@ async function weekRevenue(weeksBack = 0) {
     total += orders.reduce((s, o) => s + (o.total_money?.amount || 0), 0);
     count += orders.length;
   }
-  return { cents: total, dollars: (total / 100).toFixed(2), orders: count };
+  return { cents: total, dollars: (total / 100).toFixed(2), orders: count, range };
 }
 
 async function claudeInsight(prompt) {
@@ -135,16 +176,29 @@ async function searchMem0(query, limit = 5) {
 // ══════════════════════════════════════
 
 async function squarePatternIntel(sendToOwner) {
-  console.log("[MONITOR-1] Running Square pattern intelligence...");
+  console.log("[MONITOR-1] ═══ Running Square Pattern Intelligence ═══");
   try {
+    // Use COMPLETED Mon-Sun weeks only. Never partial weeks.
+    const thisWeek = weekRange(0);   // Most recent completed week
+    const lastWeek = weekRange(1);   // Week before that
+    const week3 = weekRange(2);
+    const week4 = weekRange(3);
+
+    console.log(`[MONITOR-1] This week:  ${thisWeek.start} to ${thisWeek.end} (${thisWeek.label})`);
+    console.log(`[MONITOR-1] Last week:  ${lastWeek.start} to ${lastWeek.end} (${lastWeek.label})`);
+    console.log(`[MONITOR-1] Week 3:     ${week3.start} to ${week3.end}`);
+    console.log(`[MONITOR-1] Week 4:     ${week4.start} to ${week4.end}`);
+
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyByDay = {};
 
-    // Analyze last 4 weeks
-    for (let w = 0; w < 4; w++) {
+    // Analyze the 4 completed weeks (NEVER the current partial week)
+    const weeksToAnalyze = [thisWeek, lastWeek, week3, week4];
+
+    for (const weekRng of weeksToAnalyze) {
       for (let d = 0; d < 7; d++) {
-        const date = new Date();
-        date.setDate(date.getDate() - (w * 7 + d));
+        const date = new Date(weekRng.start);
+        date.setDate(date.getDate() + d);
         const ds = date.toISOString().split("T")[0];
         const dayName = dayNames[date.getDay()];
         if (!weeklyByDay[dayName]) weeklyByDay[dayName] = [];
@@ -154,6 +208,14 @@ async function squarePatternIntel(sendToOwner) {
       }
     }
 
+    // Log raw data per day
+    console.log("[MONITOR-1] Raw data by day (last 4 completed weeks):");
+    for (const day of dayNames) {
+      const data = weeklyByDay[day] || [];
+      const summary = data.map(d => `${d.date}:$${(d.revenue/100).toFixed(0)}/${d.orders}o`).join(" | ");
+      console.log(`[MONITOR-1]   ${day}: ${summary}`);
+    }
+
     // Find consistently weak days (low revenue 3+ weeks)
     const weakDays = [];
     for (const [day, weeks] of Object.entries(weeklyByDay)) {
@@ -161,16 +223,18 @@ async function squarePatternIntel(sendToOwner) {
       if (lowWeeks >= 3) weakDays.push(day);
     }
 
-    // Service trends
-    const thisWeek = weekRange(0);
-    const lastWeek = weekRange(1);
+    // Service trends — only on COMPLETED weeks
     const services = { this: {}, last: {} };
+    let thisTotal = 0, lastTotal = 0, thisOrders = 0, lastOrders = 0;
 
     for (let i = 0; i < 7; i++) {
       for (const [label, range] of [["this", thisWeek], ["last", lastWeek]]) {
         const d = new Date(range.start); d.setDate(d.getDate() + i);
         const orders = await getOrdersForDate(d.toISOString().split("T")[0]);
         for (const o of orders) {
+          const amt = o.total_money?.amount || 0;
+          if (label === "this") { thisTotal += amt; thisOrders++; }
+          else { lastTotal += amt; lastOrders++; }
           for (const item of (o.line_items || [])) {
             const name = item.name || "Other";
             services[label][name] = (services[label][name] || 0) + 1;
@@ -179,29 +243,46 @@ async function squarePatternIntel(sendToOwner) {
       }
     }
 
-    // No-show patterns
-    const bookings = await getBookingsForRange(weekRange(0).start, weekRange(0).end);
+    console.log(`[MONITOR-1] This week totals:  $${(thisTotal/100).toFixed(2)} / ${thisOrders} orders`);
+    console.log(`[MONITOR-1] Last week totals:  $${(lastTotal/100).toFixed(2)} / ${lastOrders} orders`);
+    console.log(`[MONITOR-1] Service trends this week:`, services.this);
+    console.log(`[MONITOR-1] Service trends last week:`, services.last);
+
+    // No-show patterns for the completed week only
+    const bookings = await getBookingsForRange(thisWeek.start, thisWeek.end);
     const noShows = bookings.filter(b => b.status === "NO_SHOW");
+    console.log(`[MONITOR-1] No-shows this week: ${noShows.length}`);
+
+    // Calculate change
+    const diff = thisTotal - lastTotal;
+    const pctChange = lastTotal > 0 ? ((diff / lastTotal) * 100).toFixed(1) : "0";
 
     // Generate insight
-    const prompt = `Analyze this salon data and give ONE specific insight and ONE action item. Under 200 chars total.
+    const prompt = `Analyze this salon data (comparing COMPLETED Mon-Sun weeks) and give ONE specific insight and ONE action item. Under 200 chars total.
 
-Weak days (low revenue 3+ weeks): ${weakDays.length > 0 ? weakDays.join(", ") : "none"}
+Week compared: ${thisWeek.label} vs ${lastWeek.label}
+This week: $${(thisTotal/100).toFixed(2)} (${thisOrders} orders)
+Last week: $${(lastTotal/100).toFixed(2)} (${lastOrders} orders)
+Change: ${pctChange}%
+
+Weak days (low revenue 3+ of 4 weeks): ${weakDays.length > 0 ? weakDays.join(", ") : "none"}
 No-shows this week: ${noShows.length}
-Service trends: ${JSON.stringify(services.this).slice(0, 200)}
-Last week services: ${JSON.stringify(services.last).slice(0, 200)}
+Top services this week: ${JSON.stringify(services.this).slice(0, 200)}
+Top services last week: ${JSON.stringify(services.last).slice(0, 200)}
 
 Be specific. If nothing actionable, say "No action needed."`;
 
     const insight = await claudeInsight(prompt);
 
     if (insight && !insight.toLowerCase().includes("no action needed")) {
-      await sendToOwner(`💈 WEEKLY PATTERN INTEL\n\n${insight}`);
-      await saveMem0(`Weekly salon pattern: ${insight}`);
+      const msg = `💈 WEEKLY PATTERN INTEL\n\n📊 Comparing ${thisWeek.label} vs ${lastWeek.label}\nThis: $${(thisTotal/100).toFixed(2)} (${thisOrders} orders)\nLast: $${(lastTotal/100).toFixed(2)} (${lastOrders} orders)\nChange: ${pctChange}%\n\n${insight}`;
+      await sendToOwner(msg);
+      await saveMem0(`Weekly salon pattern ${thisWeek.label}: ${insight}`);
       console.log("[MONITOR-1] Insight pushed.");
     } else {
       console.log("[MONITOR-1] Nothing actionable. Silent.");
     }
+    console.log("[MONITOR-1] ═══ Complete ═══");
   } catch (err) {
     console.error("[MONITOR-1] Error:", err.message);
   }
@@ -327,10 +408,14 @@ export function getEmailIntelResults() { return emailIntelResults; }
 // ══════════════════════════════════════
 
 async function financialTrendWatcher(sendToOwner) {
-  console.log("[MONITOR-4] Analyzing financial trends...");
+  console.log("[MONITOR-4] ═══ Analyzing financial trends (completed weeks only) ═══");
   try {
     const thisWeekRev = await weekRevenue(0);
     const lastWeekRev = await weekRevenue(1);
+
+    console.log(`[MONITOR-4] Comparing ${thisWeekRev.range.label} vs ${lastWeekRev.range.label}`);
+    console.log(`[MONITOR-4] This week:  $${thisWeekRev.dollars} / ${thisWeekRev.orders} orders`);
+    console.log(`[MONITOR-4] Last week:  $${lastWeekRev.dollars} / ${lastWeekRev.orders} orders`);
 
     if (lastWeekRev.cents === 0) { console.log("[MONITOR-4] No last week data. Skip."); return; }
 
@@ -338,15 +423,18 @@ async function financialTrendWatcher(sendToOwner) {
     const diff = thisWeekRev.cents - lastWeekRev.cents;
     const diffStr = diff >= 0 ? `+$${(diff / 100).toFixed(2)}` : `-$${(Math.abs(diff) / 100).toFixed(2)}`;
 
+    const rangeLine = `📊 Comparing ${thisWeekRev.range.label} vs ${lastWeekRev.range.label}`;
+
     if (parseFloat(pctChange) < -15) {
-      await sendToOwner(`💰 REVENUE DROP ALERT\n\nLast week: $${thisWeekRev.dollars} (${thisWeekRev.orders} orders)\nPrior week: $${lastWeekRev.dollars}\nChange: ${diffStr} (${pctChange}%)\n\n⚠️ Revenue dropped more than 15%. Investigate staffing, no-shows, or seasonal dip.`);
-      await saveMem0(`Revenue alert: ${pctChange}% drop week over week. $${thisWeekRev.dollars} vs $${lastWeekRev.dollars}`);
+      await sendToOwner(`💰 REVENUE DROP ALERT\n\n${rangeLine}\n\nThis week: $${thisWeekRev.dollars} (${thisWeekRev.orders} orders)\nPrior week: $${lastWeekRev.dollars}\nChange: ${diffStr} (${pctChange}%)\n\n⚠️ Revenue dropped more than 15%. Investigate staffing, no-shows, or seasonal dip.`);
+      await saveMem0(`Revenue alert: ${pctChange}% drop ${thisWeekRev.range.label}. $${thisWeekRev.dollars} vs $${lastWeekRev.dollars}`);
     } else if (parseFloat(pctChange) > 20) {
-      await sendToOwner(`💰 REVENUE SURGE\n\nLast week: $${thisWeekRev.dollars} (${thisWeekRev.orders} orders)\nPrior week: $${lastWeekRev.dollars}\nChange: ${diffStr} (${pctChange}%)\n\n🔥 Up more than 20%. What drove this? Double down.`);
-      await saveMem0(`Revenue surge: ${pctChange}% up. $${thisWeekRev.dollars} vs $${lastWeekRev.dollars}`);
+      await sendToOwner(`💰 REVENUE SURGE\n\n${rangeLine}\n\nThis week: $${thisWeekRev.dollars} (${thisWeekRev.orders} orders)\nPrior week: $${lastWeekRev.dollars}\nChange: ${diffStr} (${pctChange}%)\n\n🔥 Up more than 20%. What drove this? Double down.`);
+      await saveMem0(`Revenue surge: ${pctChange}% up ${thisWeekRev.range.label}. $${thisWeekRev.dollars} vs $${lastWeekRev.dollars}`);
     } else {
       console.log(`[MONITOR-4] Revenue change ${pctChange}% — within normal range. Silent.`);
     }
+    console.log("[MONITOR-4] ═══ Complete ═══");
   } catch (err) {
     console.error("[MONITOR-4] Error:", err.message);
   }
