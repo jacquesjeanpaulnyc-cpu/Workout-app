@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
 import { getCalendarBriefing } from "./calendar-intel.js";
 import { getEmailBriefing } from "./gmail-triage.js";
 import { execute as staffExecute } from "./tools/staff-tracker.js";
-import { getMorningSalonBrief, getMiddayPulse, getEODEnriched } from "./salon-intel.js";
+import { getMorningSalonBrief, getMiddayPulse, getEODEnriched, getTomorrowPreview, getYesterdayRecap } from "./salon-intel.js";
 import { getEmailIntelResults } from "./autonomous-monitors.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -59,20 +59,52 @@ async function sendBriefing(type, sendToOwner) {
 
   const system = `You are JJP Agent — personal AI chief of staff for Jacques Jean Paul (Jay).
 TODAY: ${today} | ${currentTime} ET | ${daysToAugust} days until August 1, 2026
-CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Selena/Dallas/Anyssa retiring Aug), Ecuador relocation by Aug 2026, Blueprint Collective launching Aug 15.${memories}`;
+CONTEXT: WaxOS (pilot live, A2P pending), Brazilian Blueprint (salon, staff: Selena/Dallas/Anyssa retiring Aug), Ecuador relocation by Aug 2026, Blueprint Collective launching Aug 15.${memories}
+
+🚨 CRITICAL RULE: NEVER invent numbers, counts, names, or data. If the prompt doesn't explicitly give you a number, do NOT state one. Use general language like "some bookings" or ask Jay to check. NEVER make up "10 bookings" or "$500 revenue" or any specific figure. Only reference numbers that appear in the FACTS section below.`;
+
+  // Pre-pull REAL data for data-driven sections BEFORE calling Claude
+  let facts = "";
+
+  if (type === "evening") {
+    try {
+      const tomorrow = await getTomorrowPreview();
+      if (tomorrow) {
+        const bookedCount = tomorrow.booked || 0;
+        const staff = tomorrow.staffWorking?.length > 0 ? tomorrow.staffWorking.join(", ") : "none scheduled";
+        facts = `\n\n═══ VERIFIED FACTS (use these EXACT numbers — do not change) ═══
+Tomorrow: ${bookedCount} bookings confirmed
+Staff working tomorrow: ${staff}`;
+      }
+    } catch (err) {
+      console.error("[BRIEFING] Tomorrow preview failed:", err.message);
+    }
+  }
+
+  if (type === "morning") {
+    try {
+      const [yesterday, tomorrow] = await Promise.all([getYesterdayRecap(), getTomorrowPreview()]);
+      const parts = [];
+      if (yesterday) parts.push(`Yesterday: ${yesterday.revenue} (${yesterday.orders} orders)`);
+      if (tomorrow) parts.push(`Today: ${tomorrow.booked || 0} bookings confirmed`);
+      if (parts.length > 0) {
+        facts = `\n\n═══ VERIFIED FACTS (use these EXACT numbers — do not change) ═══\n${parts.join("\n")}`;
+      }
+    } catch {}
+  }
 
   const prompts = {
     morning: {
       emoji: "☀️", label: "MORNING BRIEF",
-      prompt: `Morning briefing for Jay. Date: ${today}. ${daysToAugust} days to August. Include top priorities from MEMORIES, critical deadlines, one proactive suggestion, motivational closer. Under 600 chars.`
+      prompt: `Morning briefing for Jay. Date: ${today}. ${daysToAugust} days to August. Include top priorities from MEMORIES, critical deadlines, one proactive suggestion, motivational closer. Under 600 chars.${facts}\n\nRULE: Only state numbers that appear in VERIFIED FACTS above. Do not invent booking counts or revenue figures.`
     },
     evening: {
       emoji: "🌙", label: "EVENING WIND-DOWN",
-      prompt: `Evening wind-down for Jay. Reflection prompt, tomorrow's priority from MEMORIES, ${daysToAugust} days countdown, remind to log in Powerhouse app. Under 400 chars.`
+      prompt: `Evening wind-down for Jay. Reflection prompt, tomorrow's priority from MEMORIES, ${daysToAugust} days countdown, remind to log in Powerhouse app. Under 400 chars.${facts}\n\nRULE: Only state numbers that appear in VERIFIED FACTS above. If a number isn't there, do NOT make one up. Say "bookings confirmed" generically if no count is provided.`
     },
     weekly: {
       emoji: "📊", label: "WEEKLY INTEL — SUNDAY",
-      prompt: `Sunday weekly intel for Jay. Strategic week review, ${daysToAugust} days to August, top 3 focus areas from MEMORIES, status checks (A2P, staffing, Ecuador), one strategic question. Under 700 chars.`
+      prompt: `Sunday weekly intel for Jay. Strategic week review, ${daysToAugust} days to August, top 3 focus areas from MEMORIES, status checks (A2P, staffing, Ecuador), one strategic question. Under 700 chars.${facts}\n\nRULE: Only state numbers that appear in VERIFIED FACTS above. Never invent figures.`
     }
   };
 
