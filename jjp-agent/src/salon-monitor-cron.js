@@ -76,33 +76,34 @@ async function markAlertFired(log, id) {
 
 function hasAlertFired(log, id) { return log.fired.includes(id); }
 
-// ── Salon business hours (from Square location data) ──
-// Mon: 10:00-13:30, 17:00-20:00
-// Tue: 16:00-20:00
-// Wed: 09:00-12:20, 17:00-20:00
-// Thu: CLOSED
-// Fri: 09:00-14:00
-// Sat: 09:00-13:00
-// Sun: CLOSED
+// ── Dynamic salon day detection ──
+// Jay runs 6 days a week, never 7. One closure day varies.
+// Instead of hardcoding which day is closed, we check Square bookings
+// for the actual day being monitored. If there are no bookings AND
+// no historic revenue pattern, we skip alerts for that day.
 
-const SALON_HOURS = {
-  0: null,                          // Sunday — CLOSED
-  1: [{ open: 10, close: 20 }],    // Monday
-  2: [{ open: 16, close: 20 }],    // Tuesday
-  3: [{ open: 9, close: 20 }],     // Wednesday
-  4: null,                          // Thursday — CLOSED
-  5: [{ open: 9, close: 14 }],     // Friday
-  6: [{ open: 9, close: 13 }]      // Saturday
-};
+// Broad open hours for MONITORING purposes only (widest window to catch any activity)
+// Real hours detected per-day via Square bookings
+const MONITOR_HOURS = { start: 9, end: 20 };
 
-function isSalonOpen(dayOfWeek, hour) {
-  const hours = SALON_HOURS[dayOfWeek];
-  if (!hours) return false;
-  return hours.some(h => hour >= h.open && hour < h.close);
+async function isOpenDay(dateStr) {
+  // Check if the salon had any bookings on this specific date
+  // If no bookings and no completed orders, assume closed
+  try {
+    const bookings = await squareFetch(
+      `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=10&start_at_min=${new Date(`${dateStr}T00:00:00-04:00`).toISOString()}&start_at_max=${new Date(`${dateStr}T23:59:59-04:00`).toISOString()}`
+    );
+    const activeBookings = (bookings?.bookings || []).filter(
+      b => b.status === "ACCEPTED" || b.status === "COMPLETED"
+    );
+    return activeBookings.length > 0;
+  } catch {
+    return true; // Assume open if we can't check — err on the side of monitoring
+  }
 }
 
-function isSalonDay(dayOfWeek) {
-  return SALON_HOURS[dayOfWeek] !== null;
+function isWithinMonitorWindow(hour) {
+  return hour >= MONITOR_HOURS.start && hour < MONITOR_HOURS.end;
 }
 
 // ── Square API ──
@@ -149,17 +150,20 @@ async function runCheck(sendToOwner) {
   const dayOfWeek = et.getDay();
   const dateStr = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-  // Skip if salon is closed today
-  if (!isSalonDay(dayOfWeek)) {
-    console.log(`[MONITOR] Salon closed today (${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dayOfWeek]}). Skipping.`);
-    return;
+  // Skip if outside broad monitoring window (9 AM - 8 PM ET)
+  // EOD (7 PM) and weekly (Sun 6 PM) always run regardless
+  if (!isWithinMonitorWindow(hour)) {
+    if (!(hour === 19 || (dayOfWeek === 0 && hour >= 18))) {
+      console.log(`[MONITOR] Outside monitoring window (${hour}:00). Skipping.`);
+      return;
+    }
   }
 
-  // Skip if outside salon hours
-  if (!isSalonOpen(dayOfWeek, hour)) {
-    console.log(`[MONITOR] Outside salon hours. Skipping.`);
-    // But still allow EOD summary at 7 PM and weekly at 6 PM Sunday
-    if (!(hour === 19 || (dayOfWeek === 0 && hour >= 18))) return;
+  // Dynamically check if salon has any bookings today — if not, it's a rest day
+  const hasBookings = await isOpenDay(dateStr);
+  if (!hasBookings) {
+    console.log(`[MONITOR] ${dateStr}: No bookings detected — rest day. Skipping alerts.`);
+    return;
   }
 
   const log = await loadAlertLog();
@@ -181,7 +185,7 @@ async function runCheck(sendToOwner) {
   }
 
   // Slow day — ONLY if salon is actually open AND has been open for a while
-  if (isSalonOpen(dayOfWeek, hour) && hour >= 14 && rev.cents < 20000 && rev.cents >= 0 && !hasAlertFired(log, "slow")) {
+  if (isWithinMonitorWindow(hour) && hour >= 14 && rev.cents < 20000 && rev.cents >= 0 && !hasAlertFired(log, "slow")) {
     // Don't alert $0 — that usually means closed or system error
     if (rev.count > 0 || hour >= 16) {
       await sendToOwner(`💈 Slow day at Blueprint. $${rev.dollars} so far (${rev.count} services). Consider a same-day promo push.`);
