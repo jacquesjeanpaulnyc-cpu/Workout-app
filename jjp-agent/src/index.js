@@ -14,6 +14,7 @@ import { startA2PWatcher } from "./a2p-watcher.js";
 import { startCalendarAlerts } from "./calendar-intel.js";
 import { getDailyCost } from "./brain.js";
 import { startAutonomousMonitors } from "./autonomous-monitors.js";
+import { startHiringMonitors } from "./hiring-machine.js";
 import { getHealthStatus, ensureAgentLogsTable, logAction, updateHealth } from "./orchestration.js";
 
 console.log("╔══════════════════════════════════════╗");
@@ -56,6 +57,9 @@ startCalendarAlerts(sendToOwner);
 
 // Start autonomous monitors (7 independent intelligence systems)
 startAutonomousMonitors(sendToOwner);
+
+// Start hiring machine (job board scans, beauty schools, candidate tracker)
+startHiringMonitors(sendToOwner);
 
 // ── Initialize logging table ──
 ensureAgentLogsTable();

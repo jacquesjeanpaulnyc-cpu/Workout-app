@@ -21,6 +21,7 @@ import { definition as staffDef, execute as staffExec } from "./tools/staff-trac
 import { getTodayEvents } from "./calendar-intel.js";
 import { fullEmailScan } from "./gmail-triage.js";
 import { detectDecisionLanguage } from "./autonomous-monitors.js";
+import { detectHiringCommand, executeHiringCommand } from "./hiring-machine.js";
 import {
   initMemory, addMessage, remember, forget, getMemoryContext,
   getMemorySummary, trackReminder, getRecentMessages, autoSave, search
@@ -374,6 +375,15 @@ export async function processMessage(userMessage, sendTelegram) {
     const result = await memoryResponse;
     addMessage("agent", result);
     return result;
+  }
+
+  // Handle hiring machine commands
+  const hiringCmd = detectHiringCommand(userMessage);
+  if (hiringCmd) {
+    const result = await executeHiringCommand(hiringCmd, sendTelegram);
+    const text = typeof result === "string" ? result : (result.count > 0 ? `Found ${result.count} candidates` : "Scan complete.");
+    addMessage("agent", text);
+    return text;
   }
 
   try {
