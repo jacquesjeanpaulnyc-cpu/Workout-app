@@ -1,6 +1,6 @@
 /**
- * Web Search Tool — Multi-source search with real URLs
- * Uses DuckDuckGo HTML scraping to get actual article links.
+ * Web Search Tool — Brave Search API (primary) with DuckDuckGo fallback
+ * Returns real URLs, titles, and snippets.
  */
 
 import { fetch as undiciFetch, ProxyAgent } from "undici";
@@ -14,17 +14,17 @@ function fetchUrl(url, options = {}) {
 
 export const definition = {
   name: "web_search",
-  description: "Search the web for current information, articles, news, trends, guides. Returns real URLs and snippets. Use for any question that needs live web data: AI news, trends, articles, tutorials, prices, current events. Returns up to 8 results with title, URL, and snippet.",
+  description: "Search the web for current information, articles, news, trends, LinkedIn profiles, job listings, guides. Returns real URLs and snippets. Use for any question that needs live web data.",
   input_schema: {
     type: "object",
     properties: {
       query: {
         type: "string",
-        description: "The search query. Be specific — include year, topic, and type (e.g. 'AI agent tutorials 2026', 'Claude API best practices article')"
+        description: "The search query. Be specific."
       },
       max_results: {
         type: "number",
-        description: "How many results to return. Default 8, max 15."
+        description: "How many results to return. Default 8, max 20."
       }
     },
     required: ["query"]
@@ -32,47 +32,28 @@ export const definition = {
 };
 
 export async function execute({ query, max_results }) {
-  const limit = Math.min(max_results || 8, 15);
+  const limit = Math.min(max_results || 8, 20);
+  const braveKey = process.env.BRAVE_SEARCH_API_KEY;
 
+  // Primary: Brave Search API
+  if (braveKey) {
+    try {
+      const results = await braveSearch(query, limit, braveKey);
+      if (results.length > 0) return { query, count: results.length, results };
+    } catch (err) {
+      console.error("[SEARCH] Brave failed:", err.message);
+    }
+  }
+
+  // Fallback: DuckDuckGo Instant Answer API
   try {
     const encoded = encodeURIComponent(query);
-
-    // Try DuckDuckGo HTML search — gives real URLs
-    const htmlRes = await fetchUrl(
-      `https://html.duckduckgo.com/html/?q=${encoded}`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-      }
-    );
-
-    const html = await htmlRes.text();
-    const results = parseSearchResults(html, limit);
-
-    if (results.length > 0) {
-      return {
-        query,
-        count: results.length,
-        results
-      };
-    }
-
-    // Fallback — DuckDuckGo instant answer API
-    const apiRes = await fetchUrl(
-      `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`
-    );
-    const data = await apiRes.json();
+    const res = await fetchUrl(`https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`);
+    const data = await res.json();
 
     if (data.Abstract) {
-      return {
-        query,
-        source: data.AbstractSource,
-        url: data.AbstractURL,
-        summary: data.Abstract.slice(0, 500)
-      };
+      return { query, source: data.AbstractSource, url: data.AbstractURL, summary: data.Abstract.slice(0, 500) };
     }
-
     if (data.RelatedTopics?.length) {
       return {
         query,
@@ -83,49 +64,31 @@ export async function execute({ query, max_results }) {
         }))
       };
     }
+  } catch {}
 
-    return { query, note: `No web results found for "${query}". Try rephrasing or answer from your knowledge.` };
-  } catch (err) {
-    return { query, error: `Search unavailable: ${err.message}` };
-  }
+  return { query, note: `No results found for "${query}". Answer from your own knowledge.` };
 }
 
-/**
- * Parse DuckDuckGo HTML results page
- */
-function parseSearchResults(html, limit) {
-  const results = [];
-
-  // Match result blocks: <a class="result__a" href="URL">TITLE</a>
-  // Then the snippet: <a class="result__snippet" ...>SNIPPET</a>
-  const resultBlockRegex = /<div class="result results_links[^"]*"[\s\S]*?<\/div>\s*<\/div>/g;
-  const blocks = html.match(resultBlockRegex) || [];
-
-  for (const block of blocks) {
-    if (results.length >= limit) break;
-
-    // Extract title and URL
-    const linkMatch = block.match(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
-    if (!linkMatch) continue;
-
-    // DuckDuckGo uses redirect URLs like //duckduckgo.com/l/?uddg=ENCODED_URL
-    let url = linkMatch[1];
-    const uddgMatch = url.match(/uddg=([^&]+)/);
-    if (uddgMatch) url = decodeURIComponent(uddgMatch[1]);
-    if (url.startsWith("//")) url = "https:" + url;
-
-    const title = linkMatch[2].replace(/<[^>]*>/g, "").trim().slice(0, 150);
-
-    // Extract snippet
-    const snippetMatch = block.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
-    const snippet = snippetMatch
-      ? snippetMatch[1].replace(/<[^>]*>/g, "").trim().slice(0, 300)
-      : "";
-
-    if (title && url) {
-      results.push({ title, url, snippet });
+async function braveSearch(query, count, apiKey) {
+  const encoded = encodeURIComponent(query);
+  const res = await fetchUrl(
+    `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${count}`,
+    {
+      headers: {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey
+      }
     }
-  }
+  );
 
-  return results;
+  if (!res.ok) throw new Error(`Brave API ${res.status}`);
+  const data = await res.json();
+  const webResults = data.web?.results || [];
+
+  return webResults.map(r => ({
+    title: r.title || "",
+    url: r.url || "",
+    snippet: (r.description || "").slice(0, 300)
+  }));
 }
