@@ -1,139 +1,129 @@
 /**
- * Salon Revenue Monitor — Cron version (runs inside agent process)
+ * Salon Revenue Monitor — Supabase-backed alert deduplication
  *
- * Checks Square every hour during salon hours (9 AM - 8 PM ET).
- * Sends milestone alerts, slow day warnings, EOD summary, weekly wrap.
+ * ALL alert dedup is stored in Supabase `agent_alerts_sent` table.
+ * Survives Railway deploys, restarts, and crashes permanently.
+ *
+ * Table schema (run once in Supabase SQL editor):
+ *   CREATE TABLE agent_alerts_sent (
+ *     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+ *     alert_type text NOT NULL,
+ *     alert_date date NOT NULL,
+ *     fired_at timestamptz DEFAULT now(),
+ *     amount numeric DEFAULT 0,
+ *     UNIQUE(alert_type, alert_date)
+ *   );
  */
 
 import cron from "node-cron";
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { getEODEnriched } from "./salon-intel.js";
 import { getETDayName, addDays, todayET } from "./date-utils.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ALERT_LOG_PATH = join(__dirname, "..", "salon-alerts.json");
+// ══════════════════════════════════════
+// SUPABASE DEDUP — persistent across all restarts
+// ══════════════════════════════════════
 
-// ── Alert deduplication (Supabase-backed, survives Railway deploys) ──
-// Uses agent_logs table with action_type "salon_alert_fired"
+async function hasAlertFiredToday(alertType) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return false;
 
-async function loadAlertLog() {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-
-  // Try Supabase first (persistent)
+  const today = todayET();
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY;
-    if (url && key) {
-      const res = await fetch(
-        `${url}/rest/v1/agent_logs?action_type=eq.salon_alert_fired&details=like.${today}*&select=details`,
-        { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-      );
-      if (res.ok) {
-        const rows = await res.json();
-        const fired = rows.map(r => {
-          // details format: "YYYY-MM-DD:alertId"
-          const parts = (r.details || "").split(":");
-          return parts[1] || "";
-        }).filter(Boolean);
-        return { date: today, fired };
-      }
-    }
-  } catch {}
-
-  // Fallback to in-memory only
-  return { date: today, fired: [] };
-}
-
-async function markAlertFired(log, id) {
-  if (log.fired.includes(id)) return;
-  log.fired.push(id);
-
-  // Persist to Supabase immediately
-  try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY;
-    if (url && key) {
-      await fetch(`${url}/rest/v1/agent_logs`, {
-        method: "POST",
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal"
-        },
-        body: JSON.stringify({
-          action_type: "salon_alert_fired",
-          details: `${log.date}:${id}`,
-          success: true,
-          created_at: new Date().toISOString()
-        })
-      });
-    }
-  } catch {}
-}
-
-function hasAlertFired(log, id) { return log.fired.includes(id); }
-
-// ── Dynamic salon day detection ──
-// Jay runs 6 days a week, never 7. One closure day varies.
-// Instead of hardcoding which day is closed, we check Square bookings
-// for the actual day being monitored. If there are no bookings AND
-// no historic revenue pattern, we skip alerts for that day.
-
-// Broad open hours for MONITORING purposes only (widest window to catch any activity)
-// Real hours detected per-day via Square bookings
-const MONITOR_HOURS = { start: 9, end: 20 };
-
-async function isOpenDay(dateStr) {
-  // Check if the salon had any bookings on this specific date
-  // If no bookings and no completed orders, assume closed
-  try {
-    const bookings = await squareFetch(
-      `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=10&start_at_min=${new Date(`${dateStr}T00:00:00-04:00`).toISOString()}&start_at_max=${new Date(`${dateStr}T23:59:59-04:00`).toISOString()}`
+    const res = await fetch(
+      `${url}/rest/v1/agent_alerts_sent?alert_type=eq.${alertType}&alert_date=eq.${today}&select=id&limit=1`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
     );
-    const activeBookings = (bookings?.bookings || []).filter(
-      b => b.status === "ACCEPTED" || b.status === "COMPLETED"
-    );
-    return activeBookings.length > 0;
+    if (!res.ok) return false;
+    const rows = await res.json();
+    return rows.length > 0;
   } catch {
-    return true; // Assume open if we can't check — err on the side of monitoring
+    return false; // If we can't check, allow the alert (better than silencing)
   }
 }
 
-function isWithinMonitorWindow(hour) {
-  return hour >= MONITOR_HOURS.start && hour < MONITOR_HOURS.end;
+async function markAlertFired(alertType, amount = 0) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return;
+
+  const today = todayET();
+  try {
+    await fetch(`${url}/rest/v1/agent_alerts_sent`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({
+        alert_type: alertType,
+        alert_date: today,
+        amount
+      })
+    });
+    console.log(`[DEDUP] Marked ${alertType} as fired for ${today}`);
+  } catch (err) {
+    console.error(`[DEDUP] Failed to mark ${alertType}:`, err.message);
+  }
 }
 
-// ── Square API ──
+async function cleanupOldAlerts() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) return;
 
-async function getOrdersForDate(dateStr) {
+  const cutoff = addDays(todayET(), -7);
+  try {
+    await fetch(
+      `${url}/rest/v1/agent_alerts_sent?alert_date=lt.${cutoff}`,
+      {
+        method: "DELETE",
+        headers: { apikey: key, Authorization: `Bearer ${key}` }
+      }
+    );
+    console.log(`[DEDUP] Cleaned up alerts older than ${cutoff}`);
+  } catch {}
+}
+
+// ══════════════════════════════════════
+// SQUARE API
+// ══════════════════════════════════════
+
+async function squareFetch(path, options = {}) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
-  const locationId = process.env.SQUARE_LOCATION_ID;
-  if (!token || !locationId) return [];
-
-  const res = await fetch("https://connect.squareup.com/v2/orders/search", {
-    method: "POST",
+  if (!token) return null;
+  const res = await fetch(`https://connect.squareup.com/v2${path}`, {
+    ...options,
     headers: {
       "Square-Version": "2024-01-18",
       "Authorization": `Bearer ${token}`,
       "Content-Type": "application/json"
-    },
+    }
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function getOrdersForDate(dateStr) {
+  const data = await squareFetch("/orders/search", {
+    method: "POST",
     body: JSON.stringify({
-      location_ids: [locationId],
+      location_ids: [process.env.SQUARE_LOCATION_ID],
       query: {
         filter: {
-          date_time_filter: { created_at: { start_at: `${dateStr}T00:00:00-04:00`, end_at: `${dateStr}T23:59:59-04:00` } },
+          date_time_filter: {
+            created_at: {
+              start_at: `${dateStr}T00:00:00-04:00`,
+              end_at: `${dateStr}T23:59:59-04:00`
+            }
+          },
           state_filter: { states: ["COMPLETED"] }
         }
       }
     })
   });
-
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.orders || [];
+  return data?.orders || [];
 }
 
 function calcRevenue(orders) {
@@ -141,66 +131,98 @@ function calcRevenue(orders) {
   return { dollars: (cents / 100).toFixed(2), cents, count: orders.length };
 }
 
-// ── Monitor logic ──
+// ══════════════════════════════════════
+// DYNAMIC OPEN/CLOSED DETECTION
+// ══════════════════════════════════════
+
+async function isOpenDay(dateStr) {
+  try {
+    const startUTC = new Date(`${dateStr}T00:00:00-04:00`).toISOString();
+    const endUTC = new Date(`${dateStr}T23:59:59-04:00`).toISOString();
+    const data = await squareFetch(
+      `/bookings?location_id=${process.env.SQUARE_LOCATION_ID}&limit=5&start_at_min=${startUTC}&start_at_max=${endUTC}`
+    );
+    const active = (data?.bookings || []).filter(
+      b => b.status === "ACCEPTED" || b.status === "COMPLETED"
+    );
+    return active.length > 0;
+  } catch {
+    return true;
+  }
+}
+
+// ══════════════════════════════════════
+// MONITOR LOGIC
+// ══════════════════════════════════════
 
 async function runCheck(sendToOwner) {
   const now = new Date();
   const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const hour = et.getHours();
   const dayOfWeek = et.getDay();
-  const dateStr = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const dateStr = todayET();
 
-  // Skip if outside broad monitoring window (9 AM - 8 PM ET)
-  // EOD (7 PM) and weekly (Sun 6 PM) always run regardless
-  if (!isWithinMonitorWindow(hour)) {
+  // Only run between 9 AM and 8 PM ET
+  // Exception: EOD at 7 PM and weekly on Sunday 6 PM always check
+  if (hour < 9 || hour >= 20) {
     if (!(hour === 19 || (dayOfWeek === 0 && hour >= 18))) {
-      console.log(`[MONITOR] Outside monitoring window (${hour}:00). Skipping.`);
       return;
     }
   }
 
-  // Dynamically check if salon has any bookings today — if not, it's a rest day
-  const hasBookings = await isOpenDay(dateStr);
-  if (!hasBookings) {
-    console.log(`[MONITOR] ${dateStr}: No bookings detected — rest day. Skipping alerts.`);
+  // If EOD already sent today, suppress ALL further salon alerts
+  if (await hasAlertFiredToday("eod_summary")) {
+    console.log(`[MONITOR] EOD already sent today. Suppressing all alerts.`);
     return;
   }
 
-  const log = await loadAlertLog();
+  // Check if salon is actually open
+  const isOpen = await isOpenDay(dateStr);
+  if (!isOpen && hour !== 19 && !(dayOfWeek === 0 && hour >= 18)) {
+    console.log(`[MONITOR] ${dateStr}: No bookings — rest day. Skipping.`);
+    return;
+  }
+
   const orders = await getOrdersForDate(dateStr);
   const rev = calcRevenue(orders);
 
   console.log(`[MONITOR] ${dateStr} ${hour}:00 — $${rev.dollars} (${rev.count} orders)`);
 
-  // Milestones (only on salon days)
-  if (rev.cents >= 150000 && !hasAlertFired(log, "m1500")) {
-    await sendToOwner(`💈 Blueprint at $${rev.dollars} today 👑 Top day.`);
-    await markAlertFired(log, "m1500");
-  } else if (rev.cents >= 100000 && !hasAlertFired(log, "m1000")) {
-    await sendToOwner(`💈 Blueprint crossed $1K today 🔥 Strong day. ($${rev.dollars})`);
-    await markAlertFired(log, "m1000");
-  } else if (rev.cents >= 50000 && !hasAlertFired(log, "m500")) {
-    await sendToOwner(`💈 Blueprint hit $500 today 💰 Keep going. ($${rev.dollars})`);
-    await markAlertFired(log, "m500");
+  // ── MILESTONE ALERTS (in order, once per day each) ──
+
+  if (rev.cents >= 50000 && !(await hasAlertFiredToday("milestone_500"))) {
+    await sendToOwner(`💈 Blueprint hit $500 today 💰 ($${rev.dollars})`);
+    await markAlertFired("milestone_500", rev.cents / 100);
   }
 
-  // Slow day — ONLY if salon is actually open AND has been open for a while
-  if (isWithinMonitorWindow(hour) && hour >= 14 && rev.cents < 20000 && rev.cents >= 0 && !hasAlertFired(log, "slow")) {
-    // Don't alert $0 — that usually means closed or system error
-    if (rev.count > 0 || hour >= 16) {
-      await sendToOwner(`💈 Slow day at Blueprint. $${rev.dollars} so far (${rev.count} services). Consider a same-day promo push.`);
+  if (rev.cents >= 100000 && !(await hasAlertFiredToday("milestone_1000"))) {
+    await sendToOwner(`💈 Blueprint crossed $1K today 🔥 ($${rev.dollars})`);
+    await markAlertFired("milestone_1000", rev.cents / 100);
+  }
+
+  if (rev.cents >= 150000 && !(await hasAlertFiredToday("milestone_1500"))) {
+    await sendToOwner(`💈 Blueprint at $1,500+ today 👑 ($${rev.dollars})`);
+    await markAlertFired("milestone_1500", rev.cents / 100);
+  }
+
+  // ── SLOW DAY (once per day, only after 2 PM, only if open) ──
+
+  if (isOpen && hour >= 14 && rev.cents < 20000 && rev.count > 0) {
+    if (!(await hasAlertFiredToday("slow_day"))) {
+      await sendToOwner(`💈 Slow day at Blueprint. $${rev.dollars} so far (${rev.count} services). Consider a same-day promo.`);
+      await markAlertFired("slow_day", rev.cents / 100);
     }
-    await markAlertFired(log, "slow");
   }
 
-  // EOD summary (7 PM)
-  if (hour === 19 && !hasAlertFired(log, "eod")) {
-    const lwDate = new Date(dateStr); lwDate.setDate(lwDate.getDate() - 7);
-    const lwStr = lwDate.toISOString().split("T")[0];
+  // ── EOD SUMMARY (7 PM, once per day) ──
+
+  if (hour === 19 && !(await hasAlertFiredToday("eod_summary"))) {
+    const lwDate = addDays(dateStr, -7);
     let lwRev = { dollars: "0.00", cents: 0 };
-    try { lwRev = calcRevenue(await getOrdersForDate(lwStr)); } catch {}
+    try { lwRev = calcRevenue(await getOrdersForDate(lwDate)); } catch {}
+
     const diff = rev.cents - lwRev.cents;
-    const diffStr = diff >= 0 ? `+$${(diff/100).toFixed(2)}` : `-$${(Math.abs(diff)/100).toFixed(2)}`;
+    const diffStr = diff >= 0 ? `+$${(diff / 100).toFixed(2)}` : `-$${(Math.abs(diff) / 100).toFixed(2)}`;
 
     // Claude insight
     let insight = "";
@@ -208,42 +230,53 @@ async function runCheck(sendToOwner) {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 100,
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514", max_tokens: 100,
           messages: [{ role: "user", content: `Salon made $${rev.dollars} today, ${rev.count} services. Last week same day $${lwRev.dollars}. One sentence insight under 80 chars. No emojis.` }]
         })
       });
       if (r.ok) { const d = await r.json(); insight = d.content?.find(b => b.type === "text")?.text || ""; }
     } catch {}
 
-    await sendToOwner(`💈 Blueprint closed at $${rev.dollars} today. ${rev.count} services. ${diffStr} vs last week.${insight ? `\n${insight}` : ""}`);
-    await markAlertFired(log, "eod");
+    await sendToOwner(`💈 Blueprint closed at $${rev.dollars} today. ${rev.count} services. ${diffStr} vs last ${getETDayName(lwDate)}.${insight ? `\n${insight}` : ""}`);
+    await markAlertFired("eod_summary", rev.cents / 100);
   }
 
-  // Weekly wrap (Sunday 6 PM)
-  if (dayOfWeek === 0 && hour >= 18 && !hasAlertFired(log, "weekly")) {
-    let totalCents = 0, totalCount = 0, bestDay = { name: "", date: "", cents: 0 };
-    console.log(`[MONITOR] Weekly wrap — computing from ${dateStr}`);
-    for (let i = 0; i < 7; i++) {
-      const ds = addDays(dateStr, -i);
-      try {
-        const r = calcRevenue(await getOrdersForDate(ds));
-        const dayName = getETDayName(ds);
-        console.log(`[MONITOR]   ${ds} ${dayName}: $${r.dollars} / ${r.count} orders`);
-        totalCents += r.cents; totalCount += r.count;
-        if (r.cents > bestDay.cents) bestDay = { name: dayName, date: ds, cents: r.cents };
-      } catch {}
+  // ── WEEKLY WRAP (Sunday 6 PM, once per week) ──
+
+  if (dayOfWeek === 0 && hour >= 18) {
+    // Use this Sunday's date as the dedup key
+    if (!(await hasAlertFiredToday("weekly_wrap"))) {
+      let totalCents = 0, totalCount = 0, bestDay = { name: "", date: "", cents: 0 };
+      for (let i = 0; i < 7; i++) {
+        const ds = addDays(dateStr, -i);
+        try {
+          const r = calcRevenue(await getOrdersForDate(ds));
+          const dayName = getETDayName(ds);
+          console.log(`[MONITOR]   ${ds} ${dayName}: $${r.dollars} / ${r.count}`);
+          totalCents += r.cents; totalCount += r.count;
+          if (r.cents > bestDay.cents) bestDay = { name: dayName, date: ds, cents: r.cents };
+        } catch {}
+      }
+
+      let prevCents = 0;
+      for (let i = 7; i < 14; i++) {
+        const ds = addDays(dateStr, -i);
+        try { prevCents += calcRevenue(await getOrdersForDate(ds)).cents; } catch {}
+      }
+
+      const diff = totalCents - prevCents;
+      const diffStr = diff >= 0 ? `+$${(diff / 100).toFixed(2)}` : `-$${(Math.abs(diff) / 100).toFixed(2)}`;
+
+      await sendToOwner(`💈 Week wrap: Blueprint did $${(totalCents / 100).toFixed(2)}. ${diffStr} vs last week. Best day: ${bestDay.name} ${bestDay.date} ($${(bestDay.cents / 100).toFixed(2)}). ${totalCount} services.`);
+      await markAlertFired("weekly_wrap", totalCents / 100);
     }
-    let prevCents = 0;
-    for (let i = 7; i < 14; i++) {
-      const ds = addDays(dateStr, -i);
-      try { prevCents += calcRevenue(await getOrdersForDate(ds)).cents; } catch {}
-    }
-    const diff = totalCents - prevCents;
-    const diffStr = diff >= 0 ? `+$${(diff/100).toFixed(2)}` : `-$${(Math.abs(diff)/100).toFixed(2)}`;
-    await sendToOwner(`💈 Week wrap: Blueprint did $${(totalCents/100).toFixed(2)}. ${diffStr} vs last week. Best day: ${bestDay.name} ${bestDay.date} ($${(bestDay.cents/100).toFixed(2)}). ${totalCount} services.`);
-    await markAlertFired(log, "weekly");
   }
 }
+
+// ══════════════════════════════════════
+// CRON SCHEDULER
+// ══════════════════════════════════════
 
 export function startSalonMonitor(sendToOwner) {
   if (!process.env.SQUARE_ACCESS_TOKEN || !process.env.SQUARE_LOCATION_ID) {
@@ -251,10 +284,11 @@ export function startSalonMonitor(sendToOwner) {
     return;
   }
 
-  console.log("[MONITOR] Salon revenue monitor active (hourly, 9 AM - 8 PM ET)");
+  console.log("[MONITOR] Salon revenue monitor active (hourly, Supabase dedup)");
 
   // Run every hour on the hour
   cron.schedule("0 * * * *", () => runCheck(sendToOwner), { timezone: "America/New_York" });
 
-  // DO NOT auto-fire on startup — caused duplicate alerts on every Railway deploy
+  // Weekly cleanup of old alerts — Sunday midnight
+  cron.schedule("0 0 * * 0", () => cleanupOldAlerts(), { timezone: "America/New_York" });
 }
