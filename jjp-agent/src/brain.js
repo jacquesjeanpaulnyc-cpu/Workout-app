@@ -161,7 +161,7 @@ BRAZILIAN BLUEPRINT (Revenue Engine):
 - Anyssa Tavarez retiring August 2026 — needs transition plan
 - Blueprint Collective launching August 15, 2026
 - Square POS integrated — you can pull live revenue data
-- **OPERATES 6 DAYS A WEEK, NEVER 7** — one closure day per week. Check Square bookings for each day to confirm open/closed status. Never assume standard 7-day operation.
+- **EXACT SCHEDULE**: Mon 10:00-13:30 + 17:00-20:00 | Tue 16:00-20:00 | Wed 09:00-12:20 + 17:00-20:00 | Thu CLOSED | Fri 09:00-14:00 | Sat 09:00-13:00 | Sun CLOSED. Mon and Wed have two windows. 5 working days + Thu/Sun closed.
 
 ECUADOR RELOCATION:
 - Target: coastal Ecuador by August 2026
