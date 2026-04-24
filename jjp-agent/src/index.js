@@ -58,8 +58,8 @@ startCalendarAlerts(sendToOwner);
 // Start autonomous monitors (7 independent intelligence systems)
 startAutonomousMonitors(sendToOwner);
 
-// Start hiring machine (job board scans, beauty schools, candidate tracker)
-startHiringMonitors(sendToOwner);
+// DISABLED — Jay requested stop on hiring scans
+// startHiringMonitors(sendToOwner);
 
 // ── Initialize logging table ──
 ensureAgentLogsTable();

@@ -680,8 +680,8 @@ export function startAutonomousMonitors(sendToOwner) {
   // Monitor 1: Square Pattern Intelligence — Sunday 6 PM
   cron.schedule("0 18 * * 0", () => squarePatternIntel(sendToOwner), { timezone: "America/New_York" });
 
-  // Monitor 2: WaxOS Pilot Health — Every 12 hours (6 AM, 6 PM)
-  cron.schedule("0 6,18 * * *", () => waxosPilotHealth(sendToOwner), { timezone: "America/New_York" });
+  // DISABLED — Jay requested stop on WaxOS pilot alerts, Square only
+  // cron.schedule("0 6,18 * * *", () => waxosPilotHealth(sendToOwner), { timezone: "America/New_York" });
 
   // Monitor 3: Email Intelligence — 5:25 AM daily (feeds morning brief)
   cron.schedule("25 5 * * *", () => emailIntelligence(), { timezone: "America/New_York" });
