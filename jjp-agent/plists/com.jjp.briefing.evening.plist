@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jjp.briefing.evening</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- UPDATED BY SETUP SCRIPT -->
+        <string>NODE_PATH</string>
+        <string>src/briefing-standalone.js</string>
+        <string>evening</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <!-- UPDATED BY SETUP SCRIPT -->
+    <string>AGENT_PATH</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>20</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/jjp-briefing-evening.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/jjp-briefing-evening.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
