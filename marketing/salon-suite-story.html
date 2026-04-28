@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Salon Suite — Now Leasing</title>
+<meta name="viewport" content="width=1080,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Italiana&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Bebas+Neue&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bone:#EDE4D3;
+    --cream:#F5ECDD;
+    --brick:#8B4A2B;
+    --wood:#5A3414;
+    --ink:#1A1410;
+    --gold:#C9A961;
+    --line:rgba(26,20,16,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    background:#222;display:flex;justify-content:center;align-items:flex-start;
+    min-height:100vh;font-family:'Inter',sans-serif;
+  }
+
+  /* Exact IG Story canvas. Scaled to viewport for screen viewing. */
+  .story{
+    width:1080px;height:1920px;background:var(--cream);
+    position:relative;overflow:hidden;color:var(--ink);
+    transform-origin:top center;
+  }
+  @media (max-height:1950px){
+    .story{transform:scale(calc(100vh / 1920));}
+  }
+
+  /* Subtle warm paper texture */
+  .story::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:
+      radial-gradient(120% 80% at 50% 0%,rgba(201,169,97,.10),transparent 60%),
+      radial-gradient(120% 80% at 50% 100%,rgba(139,74,43,.10),transparent 60%),
+      repeating-linear-gradient(127deg,rgba(0,0,0,.012) 0 2px,transparent 2px 5px);
+  }
+
+  /* Decorative corner brackets */
+  .corner{position:absolute;width:90px;height:90px;border:1px solid var(--brick);opacity:.55}
+  .corner.tl{top:42px;left:42px;border-right:none;border-bottom:none}
+  .corner.tr{top:42px;right:42px;border-left:none;border-bottom:none}
+  .corner.bl{bottom:42px;left:42px;border-right:none;border-top:none}
+  .corner.br{bottom:42px;right:42px;border-left:none;border-top:none}
+
+  /* Top eyebrow */
+  .eyebrow{
+    position:absolute;top:96px;left:0;right:0;
+    display:flex;align-items:center;justify-content:center;gap:28px;
+    font-family:'Inter',sans-serif;font-weight:500;
+    font-size:24px;letter-spacing:.55em;color:var(--ink);
+  }
+  .eyebrow .bar{width:110px;height:1px;background:var(--line)}
+  .eyebrow .dot{width:7px;height:7px;background:var(--brick);border-radius:50%}
+
+  /* Headline */
+  .headline{position:absolute;top:170px;left:0;right:0;text-align:center}
+  .headline .kicker{
+    font-family:'Inter',sans-serif;font-weight:400;
+    font-size:22px;letter-spacing:.5em;color:var(--brick);
+    text-transform:uppercase;margin-bottom:22px;
+  }
+  .headline h1{
+    font-family:'Italiana',serif;font-weight:400;
+    font-size:188px;line-height:.88;letter-spacing:-.005em;color:var(--ink);
+  }
+  .headline h1 em{
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;color:var(--brick);
+  }
+  .headline .underline{margin:28px auto 0;width:110px;height:1px;background:var(--gold)}
+
+  /* Photo collage */
+  .photos{
+    position:absolute;top:610px;left:60px;right:60px;height:740px;
+    display:grid;grid-template-columns:1.05fr .95fr;gap:22px;
+  }
+  .photo{
+    position:relative;overflow:hidden;border-radius:6px;background:#2a1f17;
+    box-shadow:0 30px 60px -25px rgba(0,0,0,.45),
+               0 8px 18px -10px rgba(0,0,0,.30);
+  }
+  .photo img{width:100%;height:100%;object-fit:cover;display:block}
+  .photo.left{transform:translateY(-20px)}
+  .photo.right{transform:translateY(30px)}
+
+  /* Stats row */
+  .stats{
+    position:absolute;left:60px;right:60px;top:1390px;
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;text-align:center;
+  }
+  .stat{
+    background:var(--ink);color:var(--bone);
+    padding:32px 16px 30px;border-radius:8px;position:relative;overflow:hidden;
+  }
+  .stat::after{
+    content:"";position:absolute;left:50%;bottom:0;width:46px;height:3px;
+    background:var(--gold);transform:translateX(-50%);
+  }
+  .stat .num{
+    font-family:'Italiana',serif;font-size:88px;line-height:1;color:var(--bone);
+  }
+  .stat .num small{font-size:34px;color:var(--gold);letter-spacing:.02em;vertical-align:top;margin-right:2px}
+  .stat .lbl{
+    margin-top:12px;font-family:'Inter',sans-serif;font-weight:500;
+    font-size:18px;letter-spacing:.32em;text-transform:uppercase;color:var(--gold);
+  }
+
+  /* Italic tagline */
+  .tagline{
+    position:absolute;left:80px;right:80px;top:1620px;text-align:center;
+    font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:400;
+    font-size:38px;line-height:1.3;color:var(--wood);
+  }
+  .tagline b{font-style:normal;font-weight:500;color:var(--ink);letter-spacing:.01em}
+
+  /* CTA */
+  .cta{position:absolute;left:0;right:0;bottom:96px;text-align:center}
+  .cta .button{
+    display:inline-flex;align-items:center;gap:18px;
+    padding:22px 44px;background:var(--brick);color:var(--cream);
+    font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:.18em;
+    border-radius:999px;
+    box-shadow:0 18px 36px -16px rgba(139,74,43,.55);
+  }
+  .cta .button .arrow{display:inline-block;width:38px;height:1px;background:var(--cream);position:relative}
+  .cta .button .arrow::after{
+    content:"";position:absolute;right:0;top:-5px;width:10px;height:10px;
+    border-top:1px solid var(--cream);border-right:1px solid var(--cream);transform:rotate(45deg);
+  }
+  .cta .swipe{
+    margin-top:16px;font-family:'Inter',sans-serif;font-weight:400;
+    font-size:20px;letter-spacing:.45em;color:var(--ink);text-transform:uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="story">
+
+  <span class="corner tl"></span>
+  <span class="corner tr"></span>
+  <span class="corner bl"></span>
+  <span class="corner br"></span>
+
+  <div class="eyebrow">
+    <span class="bar"></span><span class="dot"></span>
+    <span>NOW LEASING</span>
+    <span class="dot"></span><span class="bar"></span>
+  </div>
+
+  <div class="headline">
+    <div class="kicker">Private Beauty Suite</div>
+    <h1>Your<br><em>own</em> chair.</h1>
+    <div class="underline"></div>
+  </div>
+
+  <div class="photos">
+    <div class="photo left"><img src="photo1.jpg" alt="Suite view 1"></div>
+    <div class="photo right"><img src="photo2.jpg" alt="Suite view 2"></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="num"><small>$</small>500</div>
+      <div class="lbl">Per Month</div>
+    </div>
+    <div class="stat">
+      <div class="num">24/7</div>
+      <div class="lbl">Suite Access</div>
+    </div>
+    <div class="stat">
+      <div class="num"><small>$</small>0</div>
+      <div class="lbl">Deposit</div>
+    </div>
+  </div>
+
+  <div class="tagline">
+    <b>Set your hours. Build your brand.</b><br>
+    Walk in to a space that already feels like yours.
+  </div>
+
+  <div class="cta">
+    <div class="button">Tour the Suite <span class="arrow"></span></div>
+    <div class="swipe">DM to claim &nbsp;·&nbsp; limited availability</div>
+  </div>
+
+</div>
+
+</body>
+</html>
