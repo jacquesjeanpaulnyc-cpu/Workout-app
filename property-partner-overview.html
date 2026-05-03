@@ -429,23 +429,62 @@
 
   /* ---------- Print ---------- */
   @media print {
-    @page { size: Letter; margin: 0.6in; }
+    @page { size: Letter; margin: 0.55in; }
     html, body { background: #ffffff; }
-    body { font-size: 11.5px; line-height: 1.6; }
+    body { font-size: 10.5px; line-height: 1.55; color: #2c2c2c; }
     .page { padding: 0; max-width: 100%; }
+    .doc-header { padding-bottom: 10px; font-size: 9px; }
+    .doc-footer { padding-top: 10px; font-size: 9px; }
     .doc-header, .doc-footer { color: #555; }
-    section { padding: 40px 0; page-break-inside: avoid; }
-    .cover { padding: 56px 0 44px; page-break-after: auto; }
-    .cover h1 { font-size: 44px; }
-    .cover .subtext { font-size: 13px; }
-    .section-title { font-size: 28px; }
-    .section-intro, .concerns-body { font-size: 13px; }
-    .item { page-break-inside: avoid; padding: 24px 0; }
-    .item-num { font-size: 44px; }
-    .item-body h3 { font-size: 19px; }
-    .item-body p, .callout, .col-card p, .qa p { font-size: 12px; }
-    .qa { page-break-inside: avoid; padding: 18px 0; }
-    .qa h4 { font-size: 16px; }
+
+    section { padding: 22px 0; }
+    .cover { padding: 28px 0 24px; }
+    .cover h1 { font-size: 36px; margin: 14px 0 14px; line-height: 1.06; }
+    .cover .subtext { font-size: 11.5px; line-height: 1.55; }
+    .label { font-size: 9px; letter-spacing: 0.2em; }
+
+    .section-label { margin-bottom: 14px; font-size: 9px; }
+    .section-num { font-size: 32px; margin-bottom: 4px; }
+    .section-title { font-size: 22px; margin: 0 0 14px; line-height: 1.15; }
+    .section-intro, .concerns-body { font-size: 11.5px; line-height: 1.6; margin: 0 0 18px; }
+
+    .how-grid { gap: 10px; }
+    .how-card { padding: 16px 14px 18px; }
+    .how-card .step { font-size: 12px; margin-bottom: 6px; }
+    .how-card h3 { font-size: 15px; margin: 0 0 7px; }
+    .how-card p { font-size: 10.5px; line-height: 1.5; }
+
+    .two-col { gap: 10px; }
+    .col-card { padding: 16px 16px 18px; }
+    .col-card .col-label { font-size: 13px; margin-bottom: 8px; }
+    .col-card p { font-size: 11px; line-height: 1.55; }
+
+    .item {
+      page-break-inside: avoid;
+      padding: 14px 0;
+      gap: 16px;
+      grid-template-columns: 56px 1fr;
+    }
+    .item-num { font-size: 32px; }
+    .item-body h3 { font-size: 16px; margin: 2px 0 8px; }
+    .item-body h3 .sub { font-size: 13px; margin-top: 2px; }
+    .item-body p { font-size: 11px; line-height: 1.6; margin: 0 0 10px; }
+    .callout { font-size: 10.5px; padding: 9px 12px; line-height: 1.55; }
+
+    .qa { page-break-inside: avoid; padding: 11px 0; }
+    .qa h4 { font-size: 14px; margin: 0 0 5px; line-height: 1.2; }
+    .qa p { font-size: 11px; line-height: 1.6; }
+
+    .guarantee-list li {
+      padding: 12px 0;
+      gap: 12px;
+      grid-template-columns: 36px 1fr;
+      font-size: 11.5px;
+      line-height: 1.55;
+    }
+    .guarantee-list .gnum { font-size: 18px; }
+    .guarantee-list li b { font-size: 13px; margin-bottom: 3px; }
+
     .closing {
       background: #1a1a1a !important;
       color: #ffffff !important;
@@ -453,19 +492,24 @@
       print-color-adjust: exact !important;
       color-adjust: exact !important;
       page-break-before: auto;
-      margin: 56px 0 0;
-      padding: 56px 40px;
+      margin: 28px 0 0;
+      padding: 32px 28px;
     }
+    .closing h2 { font-size: 26px; margin: 12px 0 12px; line-height: 1.12; }
+    .closing .closing-body { font-size: 11.5px; line-height: 1.55; margin: 0 0 18px; }
+    .closing-contact { padding-top: 16px; gap: 7px; font-size: 11px; line-height: 1.55; }
+    .closing-contact .ck { font-size: 12.5px; margin-right: 8px; }
     .closing h2, .closing .closing-body, .closing-contact, .closing .label, .closing-contact .ck {
       color: #ffffff !important;
     }
-    .closing .label, .closing-contact .ck { color: rgba(255,255,255,0.7) !important; }
+    .closing .label, .closing-contact .ck { color: rgba(255,255,255,0.72) !important; }
+
     .callout, .how-card, .col-card {
       background: #f5f5f3 !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    a { color: inherit; text-decoration: none; }
+    a { color: inherit; text-decoration: none; border-bottom: none; }
   }
 </style>
 </head>
