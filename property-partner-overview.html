@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Property Partner Overview · Taino Collective LLC</title>
+<meta name="description" content="Taino Collective LLC — Property Partner Overview. How we operate, every safeguard, every system, every tool.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --ink-soft: #2c2c2c;
+    --muted: #6a6a6a;
+    --hairline: #e5e5e3;
+    --rule: #1a1a1a;
+    --paper: #ffffff;
+    --card: #f5f5f3;
+    --num: #d8d8d8;
+    --serif: "Cormorant Garamond", "EB Garamond", Georgia, "Times New Roman", serif;
+    --sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-weight: 300;
+    font-size: 13px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 56px;
+    background: var(--paper);
+  }
+
+  /* ---------- Document Header ---------- */
+  .doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .doc-header span { white-space: nowrap; }
+
+  /* ---------- Cover ---------- */
+  .cover {
+    padding: 96px 0 80px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .label {
+    font-size: 10.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .cover h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 56px;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin: 28px 0 32px;
+    max-width: 720px;
+  }
+  .cover .subtext {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    max-width: 620px;
+    font-weight: 300;
+  }
+
+  /* ---------- Section primitives ---------- */
+  section { padding: 72px 0; border-bottom: 1px solid var(--hairline); }
+  section:last-of-type { border-bottom: none; }
+
+  .section-label {
+    font-size: 10.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    margin-bottom: 28px;
+  }
+  .section-num {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 48px;
+    line-height: 1;
+    color: var(--num);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.15;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    margin: 0 0 28px;
+    max-width: 640px;
+  }
+  .section-intro {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    max-width: 640px;
+    margin: 0 0 40px;
+  }
+
+  /* ---------- How It Works (3-column cards) ---------- */
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 8px;
+  }
+  .how-card {
+    background: var(--card);
+    padding: 28px 24px 30px;
+  }
+  .how-card h3 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    margin: 0 0 12px;
+    color: var(--ink);
+  }
+  .how-card p {
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  /* ---------- Concerns: 2-col cards ---------- */
+  .concerns-body {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--ink-soft);
+    max-width: 680px;
+    margin: 0 0 36px;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .col-card {
+    background: var(--card);
+    padding: 28px 26px 30px;
+  }
+  .col-card .col-label {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .col-card p {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  /* ---------- Security items ---------- */
+  .item {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    gap: 28px;
+    padding: 36px 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .item:first-of-type { border-top: 1px solid var(--rule); }
+  .item-num {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 56px;
+    line-height: 1;
+    color: var(--num);
+    letter-spacing: -0.02em;
+  }
+  .item-body h3 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 1.2;
+    margin: 4px 0 14px;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .item-body p {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+  }
+  .callout {
+    background: var(--card);
+    border-left: 2px solid var(--ink);
+    padding: 14px 18px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .callout strong { font-weight: 500; }
+
+  /* ---------- FAQ ---------- */
+  .qa { padding: 26px 0; border-top: 1px solid var(--hairline); }
+  .qa:first-of-type { border-top: 1px solid var(--rule); }
+  .qa h4 {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    margin: 0 0 10px;
+    letter-spacing: 0.005em;
+  }
+  .qa p {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--ink-soft);
+    margin: 0;
+    font-weight: 300;
+    max-width: 720px;
+  }
+
+  /* ---------- Guarantee list ---------- */
+  .guarantee-list { list-style: none; padding: 0; margin: 8px 0 0; }
+  .guarantee-list li {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 6px;
+    padding: 18px 0;
+    border-top: 1px solid var(--hairline);
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+  .guarantee-list li:first-child { border-top: 1px solid var(--rule); }
+  .guarantee-list .dash {
+    font-family: var(--serif);
+    color: var(--ink);
+    font-weight: 400;
+  }
+
+  /* ---------- Closing block (dark) ---------- */
+  .closing {
+    background: #1a1a1a;
+    color: #ffffff;
+    padding: 72px 56px;
+    margin: 72px -56px 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+  .closing .label { color: rgba(255,255,255,0.55); }
+  .closing h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 38px;
+    line-height: 1.15;
+    letter-spacing: -0.005em;
+    margin: 22px 0 22px;
+    color: #ffffff;
+    max-width: 620px;
+  }
+  .closing .closing-body {
+    font-size: 14px;
+    line-height: 1.75;
+    color: rgba(255,255,255,0.78);
+    max-width: 620px;
+    margin: 0 0 36px;
+    font-weight: 300;
+  }
+  .closing-contact {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255,255,255,0.18);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.85);
+  }
+  .closing-contact .ck {
+    color: rgba(255,255,255,0.5);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-right: 10px;
+  }
+
+  /* ---------- Footer ---------- */
+  .doc-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 24px;
+    padding-top: 18px;
+    margin-top: 0;
+    border-top: 1px solid var(--hairline);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 760px) {
+    .page { padding: 36px 28px; }
+    .cover { padding: 64px 0 56px; }
+    .cover h1 { font-size: 40px; }
+    .section-title { font-size: 28px; }
+    .how-grid { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .item { grid-template-columns: 1fr; gap: 10px; padding: 30px 0; }
+    .item-num { font-size: 44px; }
+    .item-body h3 { font-size: 19px; }
+    .closing { padding: 56px 28px; margin: 56px -28px 0; }
+    .closing h2 { font-size: 30px; }
+    .doc-header, .doc-footer {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .page { padding: 28px 20px; }
+    .cover h1 { font-size: 32px; }
+    .section-title { font-size: 24px; }
+    .closing { padding: 48px 20px; margin: 48px -20px 0; }
+    .closing h2 { font-size: 26px; }
+  }
+
+  /* ---------- Print ---------- */
+  @media print {
+    @page { size: Letter; margin: 0.6in; }
+    html, body { background: #ffffff; }
+    body { font-size: 11px; }
+    .page { padding: 0; max-width: 100%; }
+    .doc-header, .doc-footer { color: #555; }
+    section { padding: 36px 0; page-break-inside: avoid; }
+    .cover { padding: 48px 0 40px; page-break-after: auto; }
+    .cover h1 { font-size: 40px; }
+    .section-title { font-size: 26px; }
+    .item { page-break-inside: avoid; padding: 22px 0; }
+    .item-num { font-size: 42px; }
+    .qa { page-break-inside: avoid; padding: 16px 0; }
+    .closing {
+      background: #1a1a1a !important;
+      color: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      page-break-before: auto;
+      margin: 48px 0 0;
+      padding: 48px 36px;
+    }
+    .closing h2, .closing .closing-body, .closing-contact, .closing .label {
+      color: #ffffff !important;
+    }
+    .callout, .how-card, .col-card {
+      background: #f5f5f3 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <!-- 1. DOCUMENT HEADER -->
+  <header class="doc-header">
+    <span>Taino Collective LLC · Property Partner Overview</span>
+    <span>Providence, RI · 2026</span>
+  </header>
+
+  <!-- 2. COVER -->
+  <section class="cover">
+    <div class="label">Confidential · For Property Owner Review</div>
+    <h1>We Don&rsquo;t Just Say We&rsquo;ll Be Good Tenants. We Prove It.</h1>
+    <p class="subtext">This document shows you exactly how we operate &mdash; every safeguard, every system, every tool &mdash; so you can make a fully informed decision with complete peace of mind.</p>
+  </section>
+
+  <!-- 3. HOW IT WORKS -->
+  <section>
+    <div class="section-label">Our Model</div>
+    <div class="how-grid">
+      <article class="how-card">
+        <h3>1 &middot; We Lease From You</h3>
+        <p>We sign a 12-month lease under Taino Collective LLC with a fully disclosed subletting clause. You review everything at your own pace.</p>
+      </article>
+      <article class="how-card">
+        <h3>2 &middot; We Pay You Every Month</h3>
+        <p>Guaranteed rent on the 1st of every month by ACH. Whether we have a guest or not &mdash; your income does not change.</p>
+      </article>
+      <article class="how-card">
+        <h3>3 &middot; We Handle Everything</h3>
+        <p>Guests, cleaning, maintenance coordination, insurance, permits. You receive rent. You handle nothing else.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 4. CONCERNS -->
+  <section>
+    <div class="section-label">Understanding Your Concerns</div>
+    <div class="section-num">01</div>
+    <h2 class="section-title">We know what you&rsquo;re worried about.</h2>
+    <p class="concerns-body">Most property owners don&rsquo;t have a problem with short-term rentals. They have a problem with what comes to mind when they hear the words &mdash; parties, strangers, damage, and no accountability. We have built specific systems to address every one of those concerns.</p>
+    <div class="two-col">
+      <article class="col-card">
+        <div class="col-label">What landlords fear</div>
+        <p>Strangers cycling through with no accountability. Parties at 2am. Damage that exceeds the deposit. No way to track who was actually there. A tenant who disappears when something goes wrong.</p>
+      </article>
+      <article class="col-card">
+        <div class="col-label">What we actually deliver</div>
+        <p>Every guest ID-verified before check-in. Real-time noise monitoring. Smart locks logging every entry and exit. Full STR insurance policy. One professional operator &mdash; always accountable, always reachable.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 5. SECURITY SYSTEMS -->
+  <section>
+    <div class="section-label">Our Security Systems</div>
+    <div class="section-num">02</div>
+    <h2 class="section-title">Every safeguard. Shown, not told.</h2>
+    <p class="section-intro">Here is every system we run in your property &mdash; the exact tool, the exact process, and what it means for you as a property owner. This is what separates us from every other operator who approaches you.</p>
+
+    <article class="item">
+      <div class="item-num">01</div>
+      <div class="item-body">
+        <h3>Identity Verification &mdash; Every Guest, Before Check-In</h3>
+        <p>Before any guest receives access, they complete a full ID verification process. They submit a photo of their government-issued ID and a live selfie holding that ID. Our system cross-references the submission against a sex offender database and verifies their email and phone number are real and deliverable. This gives us a forensic-level identity record of every person who has ever been in your property.</p>
+        <div class="callout"><strong>For you:</strong> If anything ever happens and law enforcement needs to identify who was in the property &mdash; we have it. Name, face, ID number, contact information. All documented before they ever touched your door.</div>
+      </div>
+    </article>
+
+    <article class="item">
+      <div class="item-num">02</div>
+      <div class="item-body">
+        <h3>Noise Monitoring &mdash; Real-Time Decibel Alerts</h3>
+        <p>We install a Minut noise monitoring device in every property. Minut measures decibel levels in real time and sends us an immediate alert the moment sound levels exceed a threshold consistent with a party or large gathering. It does not record conversations or audio &mdash; only decibel levels &mdash; making it fully privacy-compliant. Guests know it is there from the moment they book.</p>
+        <div class="callout"><strong>For you:</strong> You will never receive a noise complaint call from a neighbor. We handle it before it becomes your problem. The device is a visible deterrent &mdash; guests who know they are being monitored do not throw parties.</div>
+      </div>
+    </article>
+
+    <article class="item">
+      <div class="item-num">03</div>
+      <div class="item-body">
+        <h3>Smart Lock Access Control &mdash; Every Entry Logged</h3>
+        <p>We install a smart lock on every property. Each guest receives a unique, time-limited access code that activates at check-in and expires automatically at checkout. No physical key is ever handed over. Every entry and exit is logged with a timestamp. Access can be revoked remotely in seconds. A former guest can never re-enter your property after their stay ends.</p>
+        <div class="callout"><strong>For you:</strong> You always know who has access to your property. We can pull the full access log at any time. Your property is never accessible to someone who shouldn&rsquo;t be there.</div>
+      </div>
+    </article>
+
+    <article class="item">
+      <div class="item-num">04</div>
+      <div class="item-body">
+        <h3>Guest Screening &mdash; Not Everyone Gets Approved</h3>
+        <p>Our listings require verified government ID, a minimum review threshold, and a pre-stay questionnaire. We do not accept same-day bookings from unknown guests. We target professional travelers &mdash; remote workers, business travelers, relocated professionals, and traveling healthcare workers &mdash; whose employers have already vetted them before we do.</p>
+        <div class="callout"><strong>For you:</strong> The random party-seeking guest never makes it past our booking requirements. Our typical guest has a job, a professional license, or a company paying their housing. They treat properties with respect because that is simply how they operate.</div>
+      </div>
+    </article>
+
+    <article class="item">
+      <div class="item-num">05</div>
+      <div class="item-body">
+        <h3>No-Party Policy &mdash; Written, Acknowledged, Enforced</h3>
+        <p>Every listing prominently displays a no-party policy. Every guest acknowledges it before booking is confirmed. Our house rules are displayed inside the property on arrival. If a guest violates the policy, their stay is terminated immediately &mdash; we remotely deactivate their access code and escalate to the platform for removal.</p>
+        <div class="callout"><strong>For you:</strong> Your neighbors will never know a short-term rental is operating next door. Our guests are quiet professionals who need to be at work the next morning.</div>
+      </div>
+    </article>
+
+    <article class="item">
+      <div class="item-num">06</div>
+      <div class="item-body">
+        <h3>STR Insurance &mdash; A Real Policy, Not a Platform Promise</h3>
+        <p>We carry a dedicated short-term rental liability insurance policy through Proper Insurance &mdash; the leading STR-specific insurer in the United States. This policy covers property damage, liability, and loss of income. It is entirely separate from Airbnb&rsquo;s AirCover program. Our policy is in the name of Taino Collective LLC and is in force before the first guest arrives. You are named as an additional interested party.</p>
+        <div class="callout"><strong>For you:</strong> You have a real insurance policy &mdash; not a platform promise &mdash; covering your property. If anything happens, there is a clear claims process through a licensed insurer.</div>
+      </div>
+    </article>
+
+    <article class="item">
+      <div class="item-num">07</div>
+      <div class="item-body">
+        <h3>Professional Cleaning &mdash; After Every Single Guest</h3>
+        <p>Between every guest, a professional cleaning crew brings the unit to hotel-grade standards. Linens laundered, surfaces sanitized, consumables restocked, maintenance issues identified and reported. A cleaning checklist is completed and any damage photographed immediately &mdash; before the next guest arrives.</p>
+        <div class="callout"><strong>For you:</strong> Issues are caught early and handled immediately. Your property never deteriorates because it is never left unattended for months at a time.</div>
+      </div>
+    </article>
+  </section>
+
+  <!-- 6. COMMON QUESTIONS -->
+  <section>
+    <div class="section-label">Common Questions</div>
+    <div class="section-num">03</div>
+    <h2 class="section-title">Every question you have.</h2>
+
+    <div class="qa">
+      <h4>Who is actually staying in my property?</h4>
+      <p>Every guest is ID-verified with a government ID and live selfie before they receive access. We cross-reference against a sex offender database. We have a full digital record of every person who has ever stayed &mdash; name, face, and contact information. You are never dealing with anonymous strangers.</p>
+    </div>
+    <div class="qa">
+      <h4>What if someone throws a party?</h4>
+      <p>Our Minut noise monitor alerts us the moment decibel levels rise above normal. We respond immediately. If unresolved, we remotely deactivate the guest&rsquo;s smart lock and escalate to the platform. Our no-party policy is written, acknowledged by every guest before booking, and displayed inside the unit.</p>
+    </div>
+    <div class="qa">
+      <h4>What if something gets damaged?</h4>
+      <p>We carry a Proper Insurance STR liability policy &mdash; a real insurance policy in our LLC name, not Airbnb&rsquo;s AirCover. Normal wear is handled at our cost. Significant damage goes through a licensed insurer with a clear claims process. Our cleaning team documents every turnover so damage is identified and attributed immediately.</p>
+    </div>
+    <div class="qa">
+      <h4>How do I know you&rsquo;ll pay rent on time?</h4>
+      <p>Your rent is paid on the 1st of every month by ACH transfer. Whether we have a guest that month or not &mdash; your rent does not change. You are not absorbing our occupancy risk. That is entirely ours. This is in writing in the lease before we sign anything.</p>
+    </div>
+    <div class="qa">
+      <h4>Is this legal?</h4>
+      <p>Yes. Rental arbitrage with short-term subletting is a legally established business model operating in all 50 states. We operate with your explicit written permission in the lease. The subletting clause is fully disclosed, reviewed by both parties, and compliant with Rhode Island law. We hold all required STR permits before the first guest arrives.</p>
+    </div>
+    <div class="qa">
+      <h4>What if I need the property back?</h4>
+      <p>We include a 60-day written early termination clause on both sides. If your circumstances change, written notice starts the clock. We honor all existing bookings within that window and return the property professionally cleaned and documented.</p>
+    </div>
+  </section>
+
+  <!-- 7. WRITTEN GUARANTEE -->
+  <section>
+    <div class="section-label">Our Written Commitment</div>
+    <div class="section-num">04</div>
+    <h2 class="section-title">What we guarantee in writing.</h2>
+    <ul class="guarantee-list">
+      <li><span class="dash">&mdash;</span><span>Guaranteed rent paid on the 1st of every month by ACH &mdash; without exception. Your income does not depend on our occupancy.</span></li>
+      <li><span class="dash">&mdash;</span><span>Full operational transparency &mdash; access logs, noise monitor history, and guest verification records available to you at any time.</span></li>
+      <li><span class="dash">&mdash;</span><span>Zero operational calls to you &mdash; all maintenance, guest issues, and day-to-day matters handled entirely by our team.</span></li>
+      <li><span class="dash">&mdash;</span><span>Property returned professionally cleaned and documented with photos at lease end &mdash; in equal or better condition.</span></li>
+      <li><span class="dash">&mdash;</span><span>All STR permits, business licenses, and Proper Insurance &mdash; obtained and maintained in our LLC&rsquo;s name, entirely at our cost.</span></li>
+      <li><span class="dash">&mdash;</span><span>60-day written early termination clause on both sides &mdash; you are never locked in without an exit.</span></li>
+    </ul>
+  </section>
+
+  <!-- 8. CLOSING BLOCK -->
+  <aside class="closing">
+    <div class="label">Next Step</div>
+    <h2>Ready to talk? Let&rsquo;s keep it simple.</h2>
+    <p class="closing-body">15-minute call. No commitment. No pressure. We answer every question, tell you exactly what we&rsquo;d pay for your property, and send a written offer within 48 hours. You decide on your own timeline.</p>
+    <div class="closing-contact">
+      <div><span class="ck">Call / Text</span>Available 7 days &mdash; response within the hour</div>
+      <div><span class="ck">Email</span>tainocollective@gmail.com</div>
+      <div><span class="ck">Entity</span>Taino Collective LLC &middot; Montana Registered &middot; Providence, RI Operations</div>
+    </div>
+  </aside>
+
+  <!-- 9. FOOTER -->
+  <footer class="doc-footer">
+    <span>Taino Collective LLC &middot; 2026 &middot; Confidential</span>
+    <span>All security tools deployed in compliance with applicable privacy laws</span>
+  </footer>
+
+</main>
+</body>
+</html>
