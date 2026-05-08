@@ -52,13 +52,13 @@ startSalonMonitor(sendToOwner);
 // Start Twilio A2P status watcher (every 6 hours)
 startA2PWatcher(sendToOwner);
 
-// Start calendar event alerts (15-min warnings)
-startCalendarAlerts(sendToOwner);
+// DISABLED — Google Calendar already sends notifications
+// startCalendarAlerts(sendToOwner);
 
-// Start autonomous monitors (7 independent intelligence systems)
+// Start autonomous monitors
 startAutonomousMonitors(sendToOwner);
 
-// DISABLED — Jay requested stop on hiring scans
+// DISABLED — hiring scans off
 // startHiringMonitors(sendToOwner);
 
 // ── Initialize logging table ──

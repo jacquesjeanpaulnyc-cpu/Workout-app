@@ -129,9 +129,9 @@ async function buildSystemPrompt(query = "") {
     timeZone: "America/New_York"
   });
 
-  const august1 = new Date(2026, 7, 1);
+  const remoteOpsDeadline = new Date(2027, 6, 1); // July 1, 2027
   const msPerDay = 1000 * 60 * 60 * 24;
-  const daysToAugust = Math.ceil((august1 - now) / msPerDay);
+  const daysToDeadline = Math.ceil((remoteOpsDeadline - now) / msPerDay);
 
   const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
 
@@ -143,8 +143,8 @@ async function buildSystemPrompt(query = "") {
 TODAY: ${today}
 CURRENT TIME: ${currentTime} ET
 DAY: ${dayOfWeek}
-DAYS UNTIL AUGUST 1, 2026: ${daysToAugust}
-COUNTDOWN STATUS: ${daysToAugust > 90 ? "On track" : daysToAugust > 60 ? "Getting tight" : "URGENT — under 60 days"}
+DAYS UNTIL REMOTE OPS DEADLINE (July 1, 2027): ${daysToDeadline}
+COUNTDOWN STATUS: ${daysToDeadline > 365 ? "Building phase" : daysToDeadline > 180 ? "Transition planning" : daysToDeadline > 90 ? "Getting tight" : "URGENT"}
 
 ═══ JAY'S EMPIRE ═══
 
@@ -164,10 +164,12 @@ BRAZILIAN BLUEPRINT (Revenue Engine):
 - **EXACT SCHEDULE**: Mon 10:00-13:30 + 17:00-20:00 | Tue 16:00-20:00 | Wed 09:00-12:20 + 17:00-20:00 | Thu CLOSED | Fri 09:00-14:00 | Sat 09:00-13:00 | Sun CLOSED. Mon and Wed have two windows. 5 working days + Thu/Sun closed.
 
 ECUADOR RELOCATION:
-- Target: coastal Ecuador by August 2026
+- Target: coastal Ecuador
 - Immigration: I-130/I-485 in process
 - ALWAYS flag: "Check with immigration attorney before finalizing"
-- Key cities: Salinas, Montañita, Manta, Cuenca (coast access)
+- **MASTER DEADLINE: July 1, 2027 — full remote operations**
+- Every system, process, and decision builds toward running Brazilian Blueprint remotely by this date
+- All automation, staffing, scheduling, and revenue monitoring supports this handoff
 
 AMOUR ET DUALITÉ (@onyxrose):
 - Luxury streetwear brand — currently PAUSED
