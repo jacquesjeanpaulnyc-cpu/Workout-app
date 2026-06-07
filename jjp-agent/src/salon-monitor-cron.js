@@ -8,7 +8,7 @@
 
 import cron from "node-cron";
 import { getETDayName, addDays, todayET } from "./date-utils.js";
-import { SALON_SCHEDULE, isSalonDay, isInOpenWindow, getTodayWindows, getCheckTimes } from "./salon-schedule.js";
+import { SALON_SCHEDULE, isSalonDay, isInOpenWindow, getTodayWindows } from "./salon-schedule.js";
 
 // ── Supabase Dedup ──
 
