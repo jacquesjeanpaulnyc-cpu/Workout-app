@@ -1,24 +1,22 @@
 /**
  * Briefings — Clean rebuild
  *
- * 5:30 AM Morning Brief:
- *   - Yesterday's revenue from Square
- *   - Today's booked appointments + staff
- *   - Flagged emails from 3 accounts
+ * OPEN DAYS (Mon/Wed/Fri/Sat):
+ *   5:30 AM — Yesterday's revenue + today's bookings + flagged emails
+ *   8:00 PM — Tomorrow's bookings + top priority
  *
- * 8:00 PM Evening Wind-down:
- *   - Tomorrow's bookings from Square
- *   - Top priority from memory
+ * CLOSED DAYS (Tue/Thu/Sun):
+ *   5:30 AM — AI news, tools, articles + flagged emails
  *
- * 7:00 AM Sunday Weekly Intel:
- *   - Staff performance from Square
+ * Sunday 7:00 AM — Weekly intel + staff performance
  */
 
 import cron from "node-cron";
 import { getEmailBriefingSection } from "./email-scanner.js";
-import { getMorningSalonBrief } from "./salon-intel.js";
-import { getTomorrowPreview } from "./salon-intel.js";
+import { getMorningSalonBrief, getTomorrowPreview } from "./salon-intel.js";
 import { execute as staffExecute } from "./tools/staff-tracker.js";
+import { execute as webSearchExec } from "./tools/web-search.js";
+import { isSalonDay, isClosedDay } from "./salon-schedule.js";
 
 async function getMemories() {
   const MEM0_KEY = process.env.MEM0_API_KEY;
@@ -50,47 +48,119 @@ async function callClaude(system, prompt) {
 function getDateContext() {
   const now = new Date();
   const today = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/New_York" });
-  const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+  const dayOfWeek = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" })).getDay();
   const deadline = new Date(2027, 6, 1);
   const daysToDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-  return { today, time, daysToDeadline };
+  return { today, dayOfWeek, daysToDeadline };
+}
+
+// ═══ AI NEWS & TOOLS — for closed days ═══
+
+async function getAINewsSection() {
+  const queries = [
+    "AI agent tools news this week 2026",
+    "Claude API Anthropic updates 2026",
+    "AI automation SaaS tools new"
+  ];
+
+  const allResults = [];
+  for (const q of queries) {
+    try {
+      const r = await webSearchExec({ query: q, max_results: 5 });
+      if (r.results) allResults.push(...r.results.slice(0, 3));
+    } catch {}
+  }
+
+  if (allResults.length === 0) return "";
+
+  // Have Claude pick the best 3
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  try {
+    const candidates = allResults.map(r => `- ${r.title}\n  ${r.url}\n  ${r.snippet || ""}`).join("\n");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514", max_tokens: 500,
+        messages: [{ role: "user", content: `Pick the 3 most useful AI/tech items for a solo founder building an AI SaaS (WaxOS) and running a salon. Output JSON array: [{"title":"...","url":"...","why":"one sentence"}]\n\nCandidates:\n${candidates.slice(0, 3000)}\n\nJSON only:` }]
+      })
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const text = data.content?.find(b => b.type === "text")?.text || "";
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return "";
+
+    const picks = JSON.parse(match[0]);
+    const lines = ["🤖 AI & Tools for today:"];
+    picks.slice(0, 3).forEach((p, i) => {
+      lines.push(`${i + 1}. ${p.title}`);
+      lines.push(`   ${p.url}`);
+      if (p.why) lines.push(`   └ ${p.why}`);
+    });
+    return lines.join("\n");
+  } catch { return ""; }
 }
 
 // ═══ MORNING BRIEF — 5:30 AM ═══
 
 async function sendMorningBrief(sendToOwner) {
   console.log("[BRIEF] Sending morning brief...");
-  const { today, daysToDeadline } = getDateContext();
+  const { today, dayOfWeek, daysToDeadline } = getDateContext();
   const memories = await getMemories();
-
-  // Pull real data BEFORE calling Claude
-  let salonSection = "";
-  let emailSection = "";
-
-  try {
-    [salonSection, emailSection] = await Promise.all([
-      getMorningSalonBrief(),
-      getEmailBriefingSection()
-    ]);
-  } catch (err) {
-    console.error("[BRIEF] Data pull failed:", err.message);
-  }
+  const isOpen = isSalonDay(dayOfWeek);
 
   const system = `You are JJP Agent — Jay's AI chief of staff.
 TODAY: ${today} | ${daysToDeadline} days to remote ops deadline (July 1, 2027)
-RULE: NEVER invent numbers. Only reference the VERIFIED FACTS below.${memories}`;
+SALON: ${isOpen ? "OPEN today" : "CLOSED today (Tue/Thu/Sun)"}
+RULE: NEVER invent numbers. Only reference VERIFIED FACTS below.${memories}`;
 
-  const factsSection = salonSection ? `\n\nVERIFIED SALON DATA:\n${salonSection}` : "";
+  let salonSection = "";
+  let emailSection = "";
+  let aiSection = "";
 
-  const text = await callClaude(system,
-    `Write Jay's morning briefing. Short, sharp, under 400 chars. Include priorities from MEMORIES, ${daysToDeadline} days countdown, one proactive suggestion.${factsSection}\n\nDo NOT make up any numbers. Only use data from VERIFIED SALON DATA.`
-  );
+  if (isOpen) {
+    // Open day — pull salon data
+    try {
+      [salonSection, emailSection] = await Promise.all([
+        getMorningSalonBrief(),
+        getEmailBriefingSection()
+      ]);
+    } catch (err) {
+      console.error("[BRIEF] Data pull failed:", err.message);
+    }
 
-  let fullBrief = `☀️ MORNING BRIEF\n\n${text}`;
-  if (salonSection) fullBrief += `\n\n${salonSection}`;
-  if (emailSection) fullBrief += `\n\n${emailSection}`;
+    const factsSection = salonSection ? `\n\nVERIFIED SALON DATA:\n${salonSection}` : "";
+    const text = await callClaude(system,
+      `Morning briefing for an OPEN salon day. Short, under 300 chars. Priorities from MEMORIES, ${daysToDeadline} days countdown.${factsSection}`
+    );
 
-  await sendToOwner(fullBrief);
+    let fullBrief = `☀️ MORNING BRIEF\n\n${text}`;
+    if (salonSection) fullBrief += `\n\n${salonSection}`;
+    if (emailSection) fullBrief += `\n\n${emailSection}`;
+    await sendToOwner(fullBrief);
+
+  } else {
+    // Closed day — AI news + tools + emails
+    try {
+      [aiSection, emailSection] = await Promise.all([
+        getAINewsSection(),
+        getEmailBriefingSection()
+      ]);
+    } catch (err) {
+      console.error("[BRIEF] AI news pull failed:", err.message);
+    }
+
+    const text = await callClaude(system,
+      `Morning briefing for a CLOSED salon day. Jay has time to learn and build. Short, under 300 chars. Suggest what to focus on today from MEMORIES. ${daysToDeadline} days countdown.`
+    );
+
+    let fullBrief = `☀️ MORNING BRIEF (salon closed today)\n\n${text}`;
+    if (aiSection) fullBrief += `\n\n${aiSection}`;
+    if (emailSection) fullBrief += `\n\n${emailSection}`;
+    await sendToOwner(fullBrief);
+  }
+
   console.log("[BRIEF] Morning brief sent.");
 }
 
@@ -101,7 +171,6 @@ async function sendEveningBrief(sendToOwner) {
   const { daysToDeadline } = getDateContext();
   const memories = await getMemories();
 
-  // Pull tomorrow's REAL bookings
   let tomorrowFacts = "";
   try {
     const tomorrow = await getTomorrowPreview();
@@ -117,12 +186,11 @@ ${daysToDeadline} days to remote ops deadline (July 1, 2027).
 RULE: NEVER invent numbers. Only use VERIFIED data below.${memories}`;
 
   const text = await callClaude(system,
-    `Evening wind-down for Jay. Under 300 chars. Include tomorrow's priority from MEMORIES, remind to log in Powerhouse app, ${daysToDeadline} days countdown.${tomorrowFacts}\n\nOnly state the booking count from VERIFIED data. Never guess.`
+    `Evening wind-down. Under 250 chars. Tomorrow's priority from MEMORIES, remind to log in Powerhouse, ${daysToDeadline} days countdown.${tomorrowFacts}`
   );
 
   let fullBrief = `🌙 EVENING WIND-DOWN\n\n${text}`;
   if (tomorrowFacts) fullBrief += `\n${tomorrowFacts.replace("\nVERIFIED: ", "\n📅 ")}`;
-
   await sendToOwner(fullBrief);
   console.log("[BRIEF] Evening wind-down sent.");
 }
@@ -134,7 +202,6 @@ async function sendWeeklyIntel(sendToOwner) {
   const { today, daysToDeadline } = getDateContext();
   const memories = await getMemories();
 
-  // Pull staff performance
   let staffSection = "";
   try {
     const staffData = await staffExecute({ action: "overview", days: 7 });
@@ -149,16 +216,13 @@ async function sendWeeklyIntel(sendToOwner) {
     }
   } catch {}
 
-  const system = `You are JJP Agent — Jay's AI chief of staff.
-${today} | ${daysToDeadline} days to remote ops deadline (July 1, 2027).${memories}`;
-
-  const text = await callClaude(system,
-    `Sunday weekly intel for Jay. Under 500 chars. Key focus for the week from MEMORIES, strategic observations, ${daysToDeadline} days countdown.`
+  const text = await callClaude(
+    `You are JJP Agent. ${today} | ${daysToDeadline} days to July 2027.${memories}`,
+    `Sunday weekly intel. Under 400 chars. Key focus from MEMORIES, strategic note, ${daysToDeadline} days countdown.`
   );
 
   let fullBrief = `📊 WEEKLY INTEL\n\n${text}`;
   if (staffSection) fullBrief += `\n\n${staffSection}`;
-
   await sendToOwner(fullBrief);
   console.log("[BRIEF] Weekly intel sent.");
 }
@@ -168,15 +232,12 @@ ${today} | ${daysToDeadline} days to remote ops deadline (July 1, 2027).${memori
 export function startBriefings(sendToOwner) {
   console.log("[BRIEF] Briefings scheduled:");
 
-  // 5:30 AM ET daily
   cron.schedule("30 5 * * *", () => sendMorningBrief(sendToOwner).catch(e => console.error("[BRIEF] Morning failed:", e.message)), { timezone: "America/New_York" });
-  console.log("  ☀️ 5:30 AM daily → Morning brief");
+  console.log("  ☀️ 5:30 AM daily → Morning brief (salon data on open days, AI news on closed days)");
 
-  // 8:00 PM ET daily
   cron.schedule("0 20 * * *", () => sendEveningBrief(sendToOwner).catch(e => console.error("[BRIEF] Evening failed:", e.message)), { timezone: "America/New_York" });
   console.log("  🌙 8:00 PM daily → Evening wind-down");
 
-  // 7:00 AM ET Sunday
   cron.schedule("0 7 * * 0", () => sendWeeklyIntel(sendToOwner).catch(e => console.error("[BRIEF] Weekly failed:", e.message)), { timezone: "America/New_York" });
   console.log("  📊 7:00 AM Sunday → Weekly intel");
 }
