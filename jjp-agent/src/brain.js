@@ -18,10 +18,7 @@ import { definition as supabaseDef, execute as supabaseExec } from "./tools/supa
 import { definition as calendarDef, execute as calendarExec } from "./tools/google-calendar.js";
 import { definition as reactivationDef, execute as reactivationExec } from "./tools/reactivation-engine.js";
 import { definition as staffDef, execute as staffExec } from "./tools/staff-tracker.js";
-import { getTodayEvents } from "./calendar-intel.js";
-import { fullEmailScan } from "./gmail-triage.js";
-import { detectDecisionLanguage } from "./autonomous-monitors.js";
-import { detectHiringCommand, executeHiringCommand } from "./hiring-machine.js";
+import { fullEmailScan } from "./email-scanner.js";
 import {
   initMemory, addMessage, remember, forget, getMemoryContext,
   getMemorySummary, trackReminder, getRecentMessages, autoSave, search
@@ -342,21 +339,6 @@ function handleMemoryCommand(text) {
     return `📊 Agent cost today (${cost.date}):\n${cost.breakdown}\nEstimated: ${cost.estimatedCost}`;
   }
 
-  // "check calendar" / "what's on my calendar" / "my schedule"
-  if (lower.includes("check calendar") || lower.includes("my schedule") ||
-      lower.includes("what's on my calendar") || lower.includes("whats on my calendar")) {
-    return (async () => {
-      const { events } = await getTodayEvents();
-      if (events.length === 0) return "📅 Nothing on the calendar today. Full build day.";
-      const lines = [`📅 Today (${events.length} events):`];
-      events.forEach(e => {
-        const time = e.endTime ? `${e.startTime}–${e.endTime}` : e.startTime;
-        lines.push(`  • ${time}: ${e.title}`);
-      });
-      return lines.join("\n");
-    })();
-  }
-
   return null;
 }
 
@@ -366,27 +348,12 @@ function handleMemoryCommand(text) {
 export async function processMessage(userMessage, sendTelegram) {
   addMessage("jay", userMessage);
 
-  // Detect decision language and save to Mem0
-  if (detectDecisionLanguage(userMessage)) {
-    remember(`Open decision: ${userMessage}`).catch(() => {});
-    console.log("[BRAIN] Decision language detected, saved to Mem0");
-  }
-
   // Handle direct memory commands
   const memoryResponse = handleMemoryCommand(userMessage);
   if (memoryResponse) {
     const result = await memoryResponse;
     addMessage("agent", result);
     return result;
-  }
-
-  // Handle hiring machine commands
-  const hiringCmd = detectHiringCommand(userMessage);
-  if (hiringCmd) {
-    const result = await executeHiringCommand(hiringCmd, sendTelegram);
-    const text = typeof result === "string" ? result : (result.count > 0 ? `Found ${result.count} candidates` : "Scan complete.");
-    addMessage("agent", text);
-    return text;
   }
 
   try {

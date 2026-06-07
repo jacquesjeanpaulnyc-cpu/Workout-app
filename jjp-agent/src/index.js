@@ -1,8 +1,14 @@
 /**
- * JJP Agent — Personal AI Chief of Staff
+ * JJP Agent — Clean Rebuild
  *
- * Entry point. Starts Telegram bot + all cron services + health check.
- * Designed to run on Railway (cloud) — everything in one process.
+ * Active services:
+ *   - Telegram bot (text + voice)
+ *   - Morning brief (5:30 AM) — Square + 3 email accounts
+ *   - Evening wind-down (8 PM) — Square bookings + priorities
+ *   - Weekly intel (Sunday 7 AM) — staff performance
+ *   - Salon monitor — milestones, EOD, weekly wrap
+ *   - A2P watcher (every 6h)
+ *   - Health check endpoint
  */
 
 import "dotenv/config";
@@ -11,93 +17,46 @@ import { startBot, sendToOwner } from "./bot.js";
 import { startBriefings } from "./briefings.js";
 import { startSalonMonitor } from "./salon-monitor-cron.js";
 import { startA2PWatcher } from "./a2p-watcher.js";
-import { startCalendarAlerts } from "./calendar-intel.js";
 import { getDailyCost } from "./brain.js";
-import { startAutonomousMonitors } from "./autonomous-monitors.js";
-import { startHiringMonitors } from "./hiring-machine.js";
-import { getHealthStatus, ensureAgentLogsTable, logAction, updateHealth } from "./orchestration.js";
+import { getHealthStatus, ensureAgentLogsTable, logAction } from "./orchestration.js";
 
 console.log("╔══════════════════════════════════════╗");
 console.log("║       JJP AGENT — INTEL ONLINE       ║");
 console.log("╚══════════════════════════════════════╝");
 console.log();
 
-// Validate required env vars
 const required = ["ANTHROPIC_API_KEY", "TELEGRAM_BOT_TOKEN"];
 const missing = required.filter(k => !process.env[k]);
-
 if (missing.length > 0) {
-  console.error(`[FATAL] Missing required environment variables: ${missing.join(", ")}`);
-  console.error("[FATAL] Copy .env.example to .env and fill in your credentials.");
+  console.error(`[FATAL] Missing: ${missing.join(", ")}`);
   process.exit(1);
 }
 
-if (!process.env.TELEGRAM_OWNER_ID) {
-  console.warn("[WARN] TELEGRAM_OWNER_ID not set. Bot will respond to ALL users.");
-  console.warn("[WARN] Send /start to the bot to get your chat ID, then add it to .env.");
-}
-
-// Track uptime
-const startTime = Date.now();
-
-// Start Telegram bot (polling)
+// Start services
 startBot();
-
-// Start scheduled briefings (cron-based, runs in-process)
 startBriefings(sendToOwner);
-
-// Start salon revenue monitor (cron-based, runs in-process)
 startSalonMonitor(sendToOwner);
-
-// Start Twilio A2P status watcher (every 6 hours)
 startA2PWatcher(sendToOwner);
 
-// DISABLED — Google Calendar already sends notifications
-// startCalendarAlerts(sendToOwner);
-
-// Start autonomous monitors
-startAutonomousMonitors(sendToOwner);
-
-// DISABLED — hiring scans off
-// startHiringMonitors(sendToOwner);
-
-// ── Initialize logging table ──
+// Logging
 ensureAgentLogsTable();
-logAction("system_start", "JJP Agent started", true);
+logAction("system_start", "JJP Agent started (clean rebuild)", true);
 
-// ── Health Check HTTP Server ──
-
+// Health check
 const PORT = process.env.PORT || 3000;
-
-const server = createServer((req, res) => {
+createServer((req, res) => {
   if (req.url === "/health" || req.url === "/") {
     const health = getHealthStatus();
     const cost = getDailyCost();
     health.cost_today = cost.estimatedCost;
-    health.tokens_today = { input: cost.inputTokens, output: cost.outputTokens };
-
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(health, null, 2));
   } else {
     res.writeHead(404);
     res.end("Not found");
   }
-});
+}).listen(PORT, () => console.log(`[HEALTH] http://localhost:${PORT}/health`));
 
-server.listen(PORT, () => {
-  console.log(`[HEALTH] Health check: http://localhost:${PORT}/health`);
-});
-
-// Keep process alive
-process.on("SIGINT", () => {
-  console.log("\n[AGENT] Shutting down...");
-  process.exit(0);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("[AGENT] Uncaught exception:", err);
-});
-
-process.on("unhandledRejection", (err) => {
-  console.error("[AGENT] Unhandled rejection:", err);
-});
+process.on("SIGINT", () => { console.log("\n[AGENT] Shutting down..."); process.exit(0); });
+process.on("uncaughtException", (err) => console.error("[AGENT] Uncaught:", err));
+process.on("unhandledRejection", (err) => console.error("[AGENT] Unhandled:", err));
