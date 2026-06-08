@@ -42,15 +42,15 @@ startA2PWatcher(sendToOwner);
 ensureAgentLogsTable();
 logAction("system_start", "JJP Agent started (clean rebuild)", true);
 
-// Health check
+// Health check — tiny response for cron-job.org ping
 const PORT = process.env.PORT || 3000;
 createServer((req, res) => {
-  if (req.url === "/health" || req.url === "/") {
-    const health = getHealthStatus();
-    const cost = getDailyCost();
-    health.cost_today = cost.estimatedCost;
+  if (req.url === "/ping") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+  } else if (req.url === "/health" || req.url === "/") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(health, null, 2));
+    res.end(JSON.stringify({ status: "online", uptime: Math.floor(process.uptime()) }));
   } else {
     res.writeHead(404);
     res.end("Not found");
